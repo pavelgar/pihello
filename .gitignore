@@ -1,7 +1,3 @@
-# Created by https://www.toptal.com/developers/gitignore/api/python,vscode
-# Edit at https://www.toptal.com/developers/gitignore?templates=python,vscode
-
-### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -148,5 +144,3 @@ dmypy.json
 !.vscode/launch.json
 !.vscode/extensions.json
 *.code-workspace
-
-# End of https://www.toptal.com/developers/gitignore/api/python,vscode

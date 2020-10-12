@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "pihello"
+version = "0.2.0"
+description = "Highly configurable and scriptable Pi-hole statistics."
+authors = ["pavelgar <pavel.garmuyev@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+[tool.poetry.dev-dependencies]
+black = "^20.8b1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

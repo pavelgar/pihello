@@ -1,27 +1,24 @@
 # Pi-hello
 
-**Greet yourself with your Pi-hole statistics.**
-
-## What is this?
-
-**Pi-hello** is a small and <abbr title="On the TODO-list">configurable</abbr> script that displays various statistics about your _Pi-hole_.
-
-**TODO:** Add an example image.
+**Pi-hello** is a simple "_no additional dependecies required_" program used to display various statistics of your Pi-hole.  
+It is **highly configurable** and **easily scriptable**.
 
 ## Installation
 
 ### Requirements
 
 - A running [pi-hole](https://pi-hole.net/) instance
-- [Python 3](https://www.python.org/downloads/)
+- [Python 3.8](https://www.python.org/downloads/)
 - [GNU make](https://www.gnu.org/software/make/)
 
 ### Quickstart
 
+Run a preconfigured statistics display:
+
 ```bash
 git clone https://github.com/pavelgar/pihello.git
 cd pihello
-python main.py 192.168.1.2
+python pihello 192.168.1.2
 ```
 
 ## Usage
@@ -365,10 +362,13 @@ This list has currently 202 rows.
 
 ## Development
 
-### TODO-list
+### Installation
 
-- Configurable output
-- something else...
+1. Install [Poetry](https://python-poetry.org/docs/)
+1. Clone the repo  
+   `git clone https://github.com/pavelgar/Pi-hello`
+1. Install the dependencies  
+   `poetry install`
 
 ## Licence
 
