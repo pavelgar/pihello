@@ -49,33 +49,81 @@ optional arguments:
 
 ### Variable injection
 
-PiHole API's variables can be easily injected by using curly braces `{}`. This works similarly to Python's f-strings.  
-Example: `{core_current}`
+PiHole API's variables can be easily injected by using curly braces `{}`.  
+This works similarly to Python's f-strings.
 
-**Available variables**
+**Syntax**: `{variable_name}`
 
-| String | Example value |
-| :----- | ------------: |
-| `bold` |        `bold` |
+**Example:** `"PiHole {core_current} (FTL: {FTL_current})"`
+
+**Notes:**
+
+- Variable names are case-sensitive.
+- Open curly bracket, which is not part of a variable injection, should be escaped like so `\{`.
+
+<details>
+<summary><b>Available variables</b></summary>
+
+| Key                                     | Example value | Type  |
+| :-------------------------------------- | ------------: | :---: |
+| `core_update`                           |       `False` | bool  |
+| `web_update`                            |       `False` | bool  |
+| `FTL_update`                            |       `False` | bool  |
+| `core_current`                          |      `v5.1.2` |  str  |
+| `web_current`                           |      `v5.1.1` |  str  |
+| `FTL_current`                           |        `v5.2` |  str  |
+| `core_latest`                           |      `v5.1.2` |  str  |
+| `web_latest`                            |      `v5.1.1` |  str  |
+| `FTL_latest`                            |        `v5.2` |  str  |
+| `core_branch`                           |      `master` |  str  |
+| `web_branch`                            |      `master` |  str  |
+| `FTL_branch`                            |      `master` |  str  |
+| `domains_being_blocked`                 |       `94541` |  int  |
+| `dns_queries_today`                     |       `14324` |  int  |
+| `ads_blocked_today`                     |        `3917` |  int  |
+| `ads_percentage_today`                  |   `27.345713` | float |
+| `unique_domains`                        |        `5967` |  int  |
+| `queries_forwarded`                     |        `7942` |  int  |
+| `queries_cached`                        |        `2465` |  int  |
+| `clients_ever_seen`                     |          `12` |  int  |
+| `unique_clients`                        |           `9` |  int  |
+| `dns_queries_all_types`                 |       `14324` |  int  |
+| `reply_NODATA`                          |         `423` |  int  |
+| `reply_NXDOMAIN`                        |         `223` |  int  |
+| `reply_CNAME`                           |        `3784` |  int  |
+| `reply_IP`                              |        `8768` |  int  |
+| `privacy_level`                         |           `0` |  int  |
+| `status`                                |     `enabled` |  str  |
+| `gravity_last_updated.file_exists`      |        `True` | bool  |
+| `gravity_last_updated.absolute`         |  `1602374786` |  int  |
+| `gravity_last_updated.relative.days`    |           `1` |  int  |
+| `gravity_last_updated.relative.hours`   |          `12` |  int  |
+| `gravity_last_updated.relative.minutes` |          `29` |  int  |
+
+</details>
 
 ### Styling
 
-- Text styling is done by inserting style tags `[ ]` into the pritable string:  
-   `"[bold navy]Hello [underline maroon :green]World[blink]!"`
-
-Syntax: `[<style> <foreground_color> :<background_color> _<underline_color>]`
-
-**Styling rules:**
-
+- Text styling is done by inserting style tags `[ ]` into the pritable string.
 - Color prepended by a semicolon `:` indicates a **background color**.
-- Color prepended by a underline `_` indicates an **underlined color**.  
-  _AFAIK, only supported in Kitty, VTE, mintty and iTerm2_
+- Color prepended by an underline `_` indicates an **underlined color**.  
+  _AFAIK, only supported in Kitty, VTE, mintty and iTerm2._
+
+**Syntax:** `[<style> <foreground_color> :<background_color> _<underline_color>]`
+
+**Example:** `"[italic navy]Hello [underline maroon :green]World[bold]!"`
+
+**Notes:**
+
 - The style is reset before the next style is applied.
 - Style reset is also added to the end of every string.
-- Opening square bracket must be escaped like so `\[` if it's **not used** to start a new style.
-- Empty style, `[]`, can be used to reset the style.
+- Open square bracket, which is not part of a style, must be escaped like so `\[`.
+- Empty square brackets, `[]`, can be used to reset the style.
+- Order of the parameters does not matter.
+- Extra whitespace and letter's case is ignored.
 
-#### Text styles
+<details>
+<summary><b>Available styles</b></summary>
 
 | Style            | Format string | Notes                            |
 | :--------------- | :-----------: | :------------------------------- |
@@ -88,6 +136,8 @@ Syntax: `[<style> <foreground_color> :<background_color> _<underline_color>]`
 | Fast blink       |   `fblink`    | Usually not supported.           |
 | Strikethrough    |   `strike`    | Usually not supported.           |
 
+</details>
+
 #### Colors
 
 There is a number of ways to define a color:
@@ -99,11 +149,12 @@ There is a number of ways to define a color:
 | Hex value                                                            | `\#[0-9a-f]{6}`       |      `#000000` |                                                                                     |
 | RGB values                                                           | `rgb\([\d\s,]+\)`     | `rgb(0, 0, 0)` |                                                                                     |
 
-##### Color names
+<details>
+<summary><b>Available color names</b></summary>
 
 These are [Xterm](https://jonasjacek.github.io/colors/) color names.  
 Duplicate color names have been removed keeping the last (usually brightest) occurence.  
-Currently this list has 202 rows.
+This list has currently 202 rows.
 
 | Color # | Color name          |    HEX    |        RGB         |
 | :-----: | :------------------ | :-------: | :----------------: |
@@ -309,6 +360,8 @@ Currently this list has 202 rows.
 |   253   | `grey85`            | `#dadada` | `rgb(218,218,218)` |
 |   254   | `grey89`            | `#e4e4e4` | `rgb(228,228,228)` |
 |   255   | `grey93`            | `#eeeeee` | `rgb(238,238,238)` |
+
+</details>
 
 ## Development
 

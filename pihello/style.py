@@ -18,7 +18,7 @@ class Style:
     """
 
     def __init__(self, s: str):
-        self.style = s[1:-1].strip()
+        self.style = s.strip("[ ]").lower()
 
     def get_ansi_style(self) -> str:
         codes = self.parse_styles()

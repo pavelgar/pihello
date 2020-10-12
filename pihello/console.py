@@ -1,26 +1,25 @@
-from typing import Any
 from .style import Style
+
+
+class TagParseError(Exception):
+    """Raised when a tag could not be parsed."""
 
 
 class Console:
     """Definition of the console being used."""
 
-    def __init__(
-        self,
-        width: int = 0,
-        height: int = 0,
-        tab_size: int = 4,
-    ):
+    def __init__(self, width=0, height=0, tab_size=4, variables={}):
         self.width = width
         self.height = height
         self.tab_size = tab_size
+        self.variables = variables
 
     @property
     def size(self):
         """Get the size of the console."""
         return (self.width, self.height)
 
-    def print(self, *objects: Any, sep=" ", end="\n", style=None):
+    def print(self, *objects: tuple, sep=" ", end="\n", style=None):
         """Prints the given styled strings and other positional arguments to stdout."""
         if not objects:
             print()
@@ -31,33 +30,45 @@ class Console:
 
     def style(self, obj) -> str:
         """Wrapper function to determine whether an object has styling and process it accordingly."""
-        if not isinstance(obj, str):
-            return str(obj)
-        return self.parse(obj)
+        if isinstance(obj, str):
+            return self.parse(obj)
+        return str(obj)
 
     def parse(self, s: str) -> str:
-        """Parses a string containing styles and returns the styled string."""
+        """Parses a string containing possible styles and variable injections and returns the styled string."""
         ptr = 0
-        end = len(s)
+        stop = len(s)
         buffer = ""
-        while ptr < end:
-            start = ptr
-            ptr = s.find("[", start)  # Find next style opening bracket
-            if ptr < 0:  # No more styles to parse
-                buffer += s[start:]
-                break
+        while ptr < stop:
+            _next = ""
+            if s[ptr] == "\\" and (s[ptr + 1] == "[" or s[ptr + 1] == "{"):
+                ptr += 1
+                _next = s[ptr]
 
-            if ptr > 0:  # Add everything before the style bracket
-                buffer += s[start:ptr]
-                if s[ptr - 1] == "\\":  # Check for an escaped opening bracket
-                    ptr += 1
-                    continue
+            elif s[ptr] == "[":  # Beginning of a style
+                end = s.find("]", ptr + 1)
+                if end < 0:
+                    raise TagParseError("Matching ']' could not be found.")
 
-            start = ptr  # Set to start of the style string
-            ptr = s.find("]", start)  # Find the closing bracket
+                _next = Style(s[ptr : end + 1]).get_ansi_style()
+                ptr = end
+
+            elif s[ptr] == "{":  # Beginning of a variable
+                end = s.find("}", ptr + 1)
+                if end < 0:
+                    raise TagParseError("Matching '}' could not be found.")
+                var_name = s[ptr : end + 1].strip("{ }")
+                val = self.variables.get(var_name)
+                if not val:
+                    raise TagParseError(f"No variable '{var_name}'.")
+                _next = val
+                ptr = end
+
+            else:
+                _next = s[ptr]
+
+            buffer += _next
             ptr += 1
-            style = Style(s[start:ptr])
-            buffer += style.get_ansi_style()
 
         buffer += "\x1b[0m"
         return buffer
