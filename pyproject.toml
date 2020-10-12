@@ -1,9 +1,11 @@
 [tool.poetry]
 name = "pihello"
-version = "0.2.0"
-description = "Highly configurable and scriptable Pi-hole statistics."
+homepage = "https://github.com/pavelgar/Pi-hello"
+version = "0.2.1"
+description = "Highly configurable and scriptable Pi-hole statistics"
 authors = ["pavelgar <pavel.garmuyev@gmail.com>"]
 license = "MIT"
+readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
