@@ -8,6 +8,7 @@ STYLE_TO_CODE = {
     "blink": "5",
     "fblink": "6",
     "strike": "9",
+    "normal": "10",
     "dunderline": "21",
 }
 

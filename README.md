@@ -1,6 +1,6 @@
 # Pi-hello
 
-**Pi-hello** is a simple "_no additional dependecies required_" command-line program used to display various statistics of your Pi-hole.  
+**Pi-hello** is a simple "_no additional dependecies required_ " command-line program used to display various statistics of your Pi-hole.  
 It is **highly configurable** and **easily scriptable**.
 
 ## Installation
@@ -34,10 +34,12 @@ Create a configuration text file anywhere in your userspace.
 
 ```
 [cyan2]─────────────────────────────────────────────────────[]
-[white]PiHole [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
+[white]PiHole[] ([green4]{status}[]) [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
 [cyan2]─────────────────────────────────────────────────────[]
-Blocking: [darkcyan]{domains_being_blocked}[] domains
+Blocking [darkcyan]{domains_being_blocked}[] domains for [steelblue]{unique_clients}[] clients
 Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] queries [underline]today[] ([steelblue]{ads_percentage_today}%[])
+[grey37]Gravity last updated [bold grey50]{gravity_last_updated.relative.days}[grey37] days [bold grey50]{gravity_last_updated.relative.hours}[grey37] hours and [bold grey50]{gravity_last_updated.relative.minutes}[grey37] minutes ago
+
 ```
 
 Run `pihello` with the `-f` flag pointing to the configuration file:
@@ -130,6 +132,7 @@ PiHole API's variables can be easily injected by using curly braces `{ }`.
 
 | Style            | Format string | Notes                            |
 | :--------------- | :-----------: | :------------------------------- |
+| Normal           |   `normal`    | Reset the font to normal.        |
 | Bold             |    `bold`     |                                  |
 | Faint            |    `faint`    |                                  |
 | Italic           |   `italic`    |                                  |
@@ -368,7 +371,7 @@ This list has currently 202 rows.
 
 ## Development
 
-**PRs are welcome!**
+**PRs welcome!**
 
 ### Installation
 
@@ -380,10 +383,13 @@ This list has currently 202 rows.
 
 ### TODO-list
 
+_In no particular order_
+
 - Authentication for access to more variables
+- Justification styling similar to Python's `ljust()` and `rjust()`
 - Use the screen width and height to break up the text
+- Add actual support for indentation
 - Conditional formatting/styling
-- Variables?
 
 ### Changelog
 

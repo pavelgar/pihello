@@ -104,6 +104,6 @@ if __name__ == "__main__":
     if args.file:
         with open(args.file) as f:
             content = f.read()
-            console.print(content)
+            console.print(content, end="")
     else:
         console.print(DEFAULT_CONTENT)
