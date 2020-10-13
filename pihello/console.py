@@ -59,9 +59,12 @@ class Console:
                     raise TagParseError("Matching '}' could not be found.")
                 var_name = s[ptr : end + 1].strip("{ }")
                 val = self.variables.get(var_name)
+
                 if not val:
                     raise TagParseError(f"No variable '{var_name}'.")
-                _next = val
+
+                # Shorten floats to 1 decimal place
+                _next = f"{val:.1f}" if isinstance(val, float) else str(val)
                 ptr = end
 
             else:

@@ -65,12 +65,16 @@ def flatten_dict(d, tld="") -> dict:
 
 
 def get_data(addr: str, query: str = "") -> dict:
-    res = request.urlopen(f"http://{addr}/admin/api.php?{query}")
-    try:
-        data = json.loads(res.read())
-    except json.decoder.JSONDecodeError as e:
-        return None
-    return data
+    url = f"http://{addr}/admin/api.php?{query}"
+    with request.urlopen(url) as res:
+        if res.status != 200:
+            raise f"HTTP error {res.status}. Check your Pi-hole address and connection."
+        raw = res.read()
+        try:
+            return json.loads(raw)
+        except json.decoder.JSONDecodeError:
+            return raw.decode("utf-8")
+    return None
 
 
 DEFAULT_CONTENT = """\
@@ -79,15 +83,15 @@ DEFAULT_CONTENT = """\
 
 if __name__ == "__main__":
     args = get_args()
-    versions = get_data(args.addr, query="versions")
-    summary = get_data(args.addr)
-    versions = flatten_dict(versions)
-    summary = flatten_dict(summary)
+    versions = flatten_dict(get_data(args.addr, query="versions"))
+    recent_blocked = {"recent_blocked": get_data(args.addr, query="recentBlocked")}
+    summary = flatten_dict(get_data(args.addr))
+
     console = Console(
         args.width,
         args.height,
         tab_size=args.indent,
-        variables={**versions, **summary},
+        variables={**versions, **summary, **recent_blocked},
     )
     if args.timestamp:
         ts = (
