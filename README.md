@@ -1,6 +1,6 @@
 # Pi-hello
 
-**Pi-hello** is a simple "_no additional dependecies required_" program used to display various statistics of your Pi-hole.  
+**Pi-hello** is a simple "_no additional dependecies required_" command-line program used to display various statistics of your Pi-hole.  
 It is **highly configurable** and **easily scriptable**.
 
 ## Installation
@@ -28,25 +28,29 @@ python pihello 192.168.1.2
 ```
 pihello --help
 
-usage: pihello [-h] [-v] [-i INDENT] [-W WIDTH] [-H HEIGHT] addr
+usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT] [-ts [TIMESTAMP]] addr
 
 positional arguments:
-  addr                  The address of your PiHole
+  addr                  the address of your PiHole
 
 optional arguments:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
   -i INDENT, --indent INDENT
-                        Specify the indentation step (default: 4)
+                        specify the indentation step (default: 4)
+  -f FILE, --file FILE  specify path to the output config file
+  -c, --clip            set whether overflowing text will be discarded or added to the next line
   -W WIDTH, --width WIDTH
-                        Specify the screen width. Default: 0 (no limit)
+                        specify the screen width (0 = no limit). Default: 80
   -H HEIGHT, --height HEIGHT
-                        Specify the screen height. Default: 0 (no limit)
+                        specify the screen height (0 = no limit). Default: 25
+  -ts [TIMESTAMP], --timestamp [TIMESTAMP]
+                        add a timestamp as the first line. Pass optional strftime format string. Example "%H:%M - %a %d/%m/%y"
 ```
 
 ### Variable injection
 
-PiHole API's variables can be easily injected by using curly braces `{}`.  
+PiHole API's variables can be easily injected by using curly braces `{ }`.  
 This works similarly to Python's f-strings.
 
 **Syntax**: `{variable_name}`
@@ -369,6 +373,12 @@ This list has currently 202 rows.
    `git clone https://github.com/pavelgar/Pi-hello`
 1. Install the dependencies  
    `poetry install`
+
+## TODO-list
+
+- Use the screen width and height to break up the text
+- Conditional formatting/styling
+- Variables?
 
 ## Licence
 

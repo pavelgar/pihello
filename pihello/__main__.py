@@ -17,6 +17,13 @@ def get_args():
         default=4,
         type=int,
     )
+    parser.add_argument("-f", "--file", help="specify path to the output config file")
+    parser.add_argument(
+        "-c",
+        "--clip",
+        help="set whether overflowing text will be discarded or added to the next line",
+        action="store_true",
+    )
     parser.add_argument(
         "-W",
         "--width",
@@ -66,13 +73,22 @@ def get_data(addr: str, query: str = "") -> dict:
     return data
 
 
+DEFAULT_CONTENT = """\
+[lightgreen]PiHole[grey] {core_current} (FTL {FTL_current})\
+"""
+
 if __name__ == "__main__":
     args = get_args()
     versions = get_data(args.addr, query="versions")
     summary = get_data(args.addr)
     versions = flatten_dict(versions)
     summary = flatten_dict(summary)
-    console = Console(args.width, args.height, variables={**versions, **summary})
+    console = Console(
+        args.width,
+        args.height,
+        tab_size=args.indent,
+        variables={**versions, **summary},
+    )
     if args.timestamp:
         ts = (
             datetime.now()
@@ -81,6 +97,9 @@ if __name__ == "__main__":
         )
         console.print(ts, end="")
 
-    # TODO: Configurable header
-    header = "\n[lightgreen]PiHole[grey] {core_current} (FTL {FTL_current})"
-    console.print("[seagreen1]" + "─" * 64, header)
+    if args.file:
+        with open(args.file) as f:
+            content = f.read()
+            console.print(content)
+    else:
+        console.print(DEFAULT_CONTENT)

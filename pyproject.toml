@@ -2,7 +2,7 @@
 name = "pihello"
 homepage = "https://github.com/pavelgar/Pi-hello"
 version = "0.2.1"
-description = "Highly configurable and scriptable Pi-hole statistics"
+description = "Highly configurable and scriptable Pi-hole statistics in text"
 authors = ["pavelgar <pavel.garmuyev@gmail.com>"]
 license = "MIT"
 readme = "README.md"

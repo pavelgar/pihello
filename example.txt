@@ -1,0 +1,3 @@
+ [cyan2]─────────────────────────────────────────────────────
+ [white]PiHole [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
+ [cyan2]─────────────────────────────────────────────────────
