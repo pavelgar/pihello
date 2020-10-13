@@ -9,49 +9,52 @@ It is **highly configurable** and **easily scriptable**.
 
 - A running [pi-hole](https://pi-hole.net/) instance
 - [Python 3.8](https://www.python.org/downloads/)
-- [GNU make](https://www.gnu.org/software/make/)
 
 ### Quickstart
 
-Run a preconfigured statistics display:
+Install:
 
 ```bash
-git clone https://github.com/pavelgar/pihello.git
-cd pihello
-python pihello 192.168.1.2
+pip install pihello
+```
+
+Run a preconfigured display:
+
+```bash
+python -m pihello your_pihole_address
 ```
 
 ## Usage
 
 ### Configuration
 
+Create a configuration text file anywhere in your userspace.
+
+**example.txt**
+
 ```
-pihello --help
+[cyan2]─────────────────────────────────────────────────────[]
+[white]PiHole [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
+[cyan2]─────────────────────────────────────────────────────[]
+Blocking: [darkcyan]{domains_being_blocked}[] domains
+Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] queries [underline]today[] ([steelblue]{ads_percentage_today}%[])
+```
 
-usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT] [-ts [TIMESTAMP]] addr
+Run `pihello` with the `-f` flag pointing to the configuration file:
 
-positional arguments:
-  addr                  the address of your PiHole
+```bash
+python -m pihello -f /home/username/path_to/example.txt
+```
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --version         show program's version number and exit
-  -i INDENT, --indent INDENT
-                        specify the indentation step (default: 4)
-  -f FILE, --file FILE  specify path to the output config file
-  -c, --clip            set whether overflowing text will be discarded or added to the next line
-  -W WIDTH, --width WIDTH
-                        specify the screen width (0 = no limit). Default: 80
-  -H HEIGHT, --height HEIGHT
-                        specify the screen height (0 = no limit). Default: 25
-  -ts [TIMESTAMP], --timestamp [TIMESTAMP]
-                        add a timestamp as the first line. Pass optional strftime format string. Example "%H:%M - %a %d/%m/%y"
+Other command options:
+
+```bash
+python -m pihello --help
 ```
 
 ### Variable injection
 
-PiHole API's variables can be easily injected by using curly braces `{ }`.  
-This works similarly to Python's f-strings.
+PiHole API's variables can be easily injected by using curly braces `{ }`.
 
 **Syntax**: `{variable_name}`
 
@@ -59,55 +62,56 @@ This works similarly to Python's f-strings.
 
 **Notes:**
 
-- Variable names are case-sensitive.
-- Open curly bracket, which is not part of a variable injection, should be escaped like so `\{`.
+- Variable names are case-sensitive
+- Open curly brace, which is not part of a variable injection, should be escaped like so `\{`
 
 <details>
 <summary><b>Available variables</b></summary>
 
-| Key                                     | Example value | Type  |
-| :-------------------------------------- | ------------: | :---: |
-| `core_update`                           |       `False` | bool  |
-| `web_update`                            |       `False` | bool  |
-| `FTL_update`                            |       `False` | bool  |
-| `core_current`                          |      `v5.1.2` |  str  |
-| `web_current`                           |      `v5.1.1` |  str  |
-| `FTL_current`                           |        `v5.2` |  str  |
-| `core_latest`                           |      `v5.1.2` |  str  |
-| `web_latest`                            |      `v5.1.1` |  str  |
-| `FTL_latest`                            |        `v5.2` |  str  |
-| `core_branch`                           |      `master` |  str  |
-| `web_branch`                            |      `master` |  str  |
-| `FTL_branch`                            |      `master` |  str  |
-| `domains_being_blocked`                 |       `94541` |  int  |
-| `dns_queries_today`                     |       `14324` |  int  |
-| `ads_blocked_today`                     |        `3917` |  int  |
-| `ads_percentage_today`                  |   `27.345713` | float |
-| `unique_domains`                        |        `5967` |  int  |
-| `queries_forwarded`                     |        `7942` |  int  |
-| `queries_cached`                        |        `2465` |  int  |
-| `clients_ever_seen`                     |          `12` |  int  |
-| `unique_clients`                        |           `9` |  int  |
-| `dns_queries_all_types`                 |       `14324` |  int  |
-| `reply_NODATA`                          |         `423` |  int  |
-| `reply_NXDOMAIN`                        |         `223` |  int  |
-| `reply_CNAME`                           |        `3784` |  int  |
-| `reply_IP`                              |        `8768` |  int  |
-| `privacy_level`                         |           `0` |  int  |
-| `status`                                |     `enabled` |  str  |
-| `gravity_last_updated.file_exists`      |        `True` | bool  |
-| `gravity_last_updated.absolute`         |  `1602374786` |  int  |
-| `gravity_last_updated.relative.days`    |           `1` |  int  |
-| `gravity_last_updated.relative.hours`   |          `12` |  int  |
-| `gravity_last_updated.relative.minutes` |          `29` |  int  |
+| Key                                     |              Example value | Type  |
+| :-------------------------------------- | -------------------------: | :---: |
+| `recent_blocked`                        | `ssl.google-analytics.com` |  str  |
+| `core_update`                           |                    `False` | bool  |
+| `web_update`                            |                    `False` | bool  |
+| `FTL_update`                            |                    `False` | bool  |
+| `core_current`                          |                   `v5.1.2` |  str  |
+| `web_current`                           |                   `v5.1.1` |  str  |
+| `FTL_current`                           |                     `v5.2` |  str  |
+| `core_latest`                           |                   `v5.1.2` |  str  |
+| `web_latest`                            |                   `v5.1.1` |  str  |
+| `FTL_latest`                            |                     `v5.2` |  str  |
+| `core_branch`                           |                   `master` |  str  |
+| `web_branch`                            |                   `master` |  str  |
+| `FTL_branch`                            |                   `master` |  str  |
+| `domains_being_blocked`                 |                    `94541` |  int  |
+| `dns_queries_today`                     |                    `14324` |  int  |
+| `ads_blocked_today`                     |                     `3917` |  int  |
+| `ads_percentage_today`                  |                `27.345713` | float |
+| `unique_domains`                        |                     `5967` |  int  |
+| `queries_forwarded`                     |                     `7942` |  int  |
+| `queries_cached`                        |                     `2465` |  int  |
+| `clients_ever_seen`                     |                       `12` |  int  |
+| `unique_clients`                        |                        `9` |  int  |
+| `dns_queries_all_types`                 |                    `14324` |  int  |
+| `reply_NODATA`                          |                      `423` |  int  |
+| `reply_NXDOMAIN`                        |                      `223` |  int  |
+| `reply_CNAME`                           |                     `3784` |  int  |
+| `reply_IP`                              |                     `8768` |  int  |
+| `privacy_level`                         |                        `0` |  int  |
+| `status`                                |                  `enabled` |  str  |
+| `gravity_last_updated.file_exists`      |                     `True` | bool  |
+| `gravity_last_updated.absolute`         |               `1602374786` |  int  |
+| `gravity_last_updated.relative.days`    |                        `1` |  int  |
+| `gravity_last_updated.relative.hours`   |                       `12` |  int  |
+| `gravity_last_updated.relative.minutes` |                       `29` |  int  |
 
 </details>
 
 ### Styling
 
-- Text styling is done by inserting style tags `[ ]` into the pritable string.
-- Color prepended by a semicolon `:` indicates a **background color**.
-- Color prepended by an underline `_` indicates an **underlined color**.  
+- Text styling is done by inserting style tags `[ ]`
+- Color prepended by a semicolon `:` indicates a **background color**
+- Color prepended by an underline `_` indicates an **underlined color**  
   _AFAIK, only supported in Kitty, VTE, mintty and iTerm2._
 
 **Syntax:** `[<style> <foreground_color> :<background_color> _<underline_color>]`
@@ -116,12 +120,10 @@ This works similarly to Python's f-strings.
 
 **Notes:**
 
-- The style is reset before the next style is applied.
-- Style reset is also added to the end of every string.
-- Open square bracket, which is not part of a style, must be escaped like so `\[`.
-- Empty square brackets, `[]`, can be used to reset the style.
-- Order of the parameters does not matter.
-- Extra whitespace and letter's case is ignored.
+- Open square bracket, which is not part of a style, must be escaped like so `\[`
+- Empty square brackets, `[]`, can be used to reset the style
+- Order of the parameters does not matter
+- Extra whitespace and letter's case is ignored
 
 <details>
 <summary><b>Available styles</b></summary>
@@ -366,6 +368,8 @@ This list has currently 202 rows.
 
 ## Development
 
+**PRs are welcome!**
+
 ### Installation
 
 1. Install [Poetry](https://python-poetry.org/docs/)
@@ -374,11 +378,16 @@ This list has currently 202 rows.
 1. Install the dependencies  
    `poetry install`
 
-## TODO-list
+### TODO-list
 
+- Authentication for access to more variables
 - Use the screen width and height to break up the text
 - Conditional formatting/styling
 - Variables?
+
+### Changelog
+
+Changelog can be found in [CHANGELOG.md](./CHANGELOG.md)
 
 ## Licence
 

@@ -1,3 +1,5 @@
- [cyan2]─────────────────────────────────────────────────────
- [white]PiHole [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
- [cyan2]─────────────────────────────────────────────────────
+[cyan2]─────────────────────────────────────────────────────[]
+[white]PiHole [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
+[cyan2]─────────────────────────────────────────────────────[]
+Blocking: [darkcyan]{domains_being_blocked}[] domains
+Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] queries [underline]today[] ([steelblue]{ads_percentage_today}%[])
