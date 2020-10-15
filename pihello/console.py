@@ -22,11 +22,10 @@ class Console:
     def print(self, *objects: tuple, sep=" ", end="\n", style=None):
         """Prints the given styled strings and other positional arguments to stdout."""
         if not objects:
-            print()
+            print(sep=sep, end=end)
 
         strs = [self.style(obj) for obj in objects]
-        s = sep.join(strs) + end
-        print(s)
+        print(*strs, sep=sep, end=end)
 
     def style(self, obj) -> str:
         """Wrapper function to determine whether an object has styling and process it accordingly."""
