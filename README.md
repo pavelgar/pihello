@@ -39,8 +39,13 @@ Create a configuration text file anywhere in your userspace.
 Blocking [darkcyan]{domains_being_blocked}[] domains for [steelblue]{unique_clients}[] clients
 Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] queries [underline]today[] ([steelblue]{ads_percentage_today}%[])
 [grey37]Gravity last updated [bold grey50]{gravity_last_updated.relative.days}[grey37] days [bold grey50]{gravity_last_updated.relative.hours}[grey37] hours and [bold grey50]{gravity_last_updated.relative.minutes}[grey37] minutes ago
-
 ```
+
+**Result**
+
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/6000502/96100552-05e1e000-0ec4-11eb-8cce-9a5fa22abc7c.png">
+</p>
 
 Run `pihello` with the `-f` flag pointing to the configuration file:
 
