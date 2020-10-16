@@ -1,16 +1,20 @@
-# pihello
-
-<p align="center">
+<div align="center">
+  <h1>pihello</h1>
+  <p>
+    <b>pihello</b> is a <u>simple</u> and <u>configurable</u>
+    command-line tool used to display statistics of your Pi-hole.
+    <br>
+    <i>No additional dependecies required.</i>
+  </p>
+  <a href="https://pypi.org/project/pihello/">
+    <img alt="PyPI" src="https://img.shields.io/pypi/v/pihello">
+  <a>
+  <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/pihello">
+  <img alt="PyPI - Wheel" src="https://img.shields.io/pypi/wheel/pihello">
+  <img alt="PyPI - License" src="https://img.shields.io/pypi/l/pihello">
+  <p></p>
   <img src="docs/example_output.svg">
-</p>
-
-<p align="center">
-<b>pihello</b> is a <u>simple</u> and <u>configurable</u>
-<br>
-command-line tool used to display statistics of your Pi-hole written in Python.
-<br>
-<i>No additional dependecies required.</i>
-</p>
+</div>
 
 ## Installation
 
