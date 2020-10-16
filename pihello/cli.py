@@ -86,7 +86,8 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 [grey37]Gravity last updated [bold grey50]{gravity_last_updated.relative.days}[grey37] days [bold grey50]{gravity_last_updated.relative.hours}[grey37] hours and [bold grey50]{gravity_last_updated.relative.minutes}[grey37] minutes ago\
 """
 
-if __name__ == "__main__":
+
+def main():
     args = get_args()
     versions = flatten_dict(get_data(args.addr, query="versions"))
     recent_blocked = {"recent_blocked": get_data(args.addr, query="recentBlocked")}
