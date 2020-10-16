@@ -1,7 +1,16 @@
-# Pi-hello
+# pihello
 
-**Pi-hello** is a simple "_no additional dependecies required_ " command-line program used to display various statistics of your Pi-hole.  
-It is **highly configurable** and **easily scriptable**.
+<p align="center">
+  <img src="docs/example_output.svg">
+</p>
+
+<p align="center">
+<b>pihello</b> is a <u>simple</u> and <u>configurable</u>
+<br>
+command-line tool used to display statistics of your Pi-hole written in Python.
+<br>
+<i>No additional dependecies required.</i>
+</p>
 
 ## Installation
 
@@ -18,10 +27,10 @@ Install:
 pip install pihello
 ```
 
-Run a preconfigured display:
+Run a preconfigured display (as seen above):
 
 ```bash
-python -m pihello your_pihole_address
+pihello <your.pihole.address>
 ```
 
 ## Usage
@@ -30,7 +39,7 @@ python -m pihello your_pihole_address
 
 Create a configuration text file anywhere in your userspace.
 
-**example.txt**
+**[example.txt](docs/example.txt)**
 
 ```
 [cyan2]─────────────────────────────────────────────────────[]
@@ -41,22 +50,16 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 [grey37]Gravity last updated [bold grey50]{gravity_last_updated.relative.days}[grey37] days [bold grey50]{gravity_last_updated.relative.hours}[grey37] hours and [bold grey50]{gravity_last_updated.relative.minutes}[grey37] minutes ago
 ```
 
-**Result**
-
-<p align="center">
-  <img src="https://user-images.githubusercontent.com/6000502/96100552-05e1e000-0ec4-11eb-8cce-9a5fa22abc7c.png">
-</p>
-
 Run `pihello` with the `-f` flag pointing to the configuration file:
 
 ```bash
-python -m pihello -f /home/username/path_to/example.txt
+pihello -f /home/username/path_to/example.txt
 ```
 
 Other command options:
 
 ```bash
-python -m pihello --help
+pihello --help
 ```
 
 ### Variable injection
@@ -398,7 +401,7 @@ _In no particular order_
 
 ### Changelog
 
-Changelog can be found in [CHANGELOG.md](./CHANGELOG.md)
+Changelog can be found in [CHANGELOG.md](docs/CHANGELOG.md)
 
 ## Licence
 
