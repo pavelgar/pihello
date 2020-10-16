@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "pihello"
 homepage = "https://github.com/pavelgar/Pi-hello"
-version = "0.2.2"
+version = "0.2.3"
 description = "Highly configurable and scriptable Pi-hole statistics in text"
 authors = ["pavelgar <pavel.garmuyev@gmail.com>"]
 license = "MIT"
