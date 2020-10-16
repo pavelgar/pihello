@@ -3,13 +3,13 @@ import json
 from urllib import request, error
 from datetime import datetime
 from argparse import ArgumentParser
-from pihello.console import Console
+from pihello import Console, __version__
 
 
 def get_args():
     parser = ArgumentParser(prog="pihello")
     parser.add_argument("addr", help="the address of your PiHole")
-    parser.add_argument("-v", "--version", action="version", version="v0.0.1")
+    parser.add_argument("-v", "--version", action="version", version=__version__)
     parser.add_argument(
         "-i",
         "--indent",
