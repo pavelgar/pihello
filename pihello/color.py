@@ -35,11 +35,11 @@ class Color:
     @property
     def is_default(self) -> bool:
         """Check if the color is a default color."""
-        return self.name == "default" or (self.number == None and self.triplet == None)
+        return self.name == "default" or (self.number is None and self.triplet is None)
 
     def get_truecolor(self) -> Optional[Tuple[int, int, int]]:
         """Get an equivalent color triplet (R, G, B) for this color."""
-        if self.number != None:
+        if self.number is not None:
             return EIGHT_BIT_PALETTE[self.number]
         if self.triplet:
             return self.triplet
@@ -54,7 +54,7 @@ class Color:
             fore, back = (30, 40) if self.number < 8 else (82, 92)
             return (str(fore + self.number if foreground else back + self.number),)
 
-        elif self.number != None:
+        elif self.number is not None:
             return (
                 "38" if foreground else "58" if underline else "48",
                 "5",

@@ -59,7 +59,7 @@ class Console:
                 var_name = s[ptr : end + 1].strip("{ }")
                 val = self.variables.get(var_name)
 
-                if not val:
+                if val is None:
                     raise TagParseError(f"No variable '{var_name}'.")
 
                 # Shorten floats to 1 decimal place
