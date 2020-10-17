@@ -16,6 +16,12 @@
   <img src="docs/example_output.svg">
 </div>
 
+## What's this used for?
+
+You frequently work in the terminal or ssh into your pi-hole host? Wouldn't it be nice to have a useful greeting message?
+
+Just install and add the `pihello <your.pihole.address>` command to your shell's startup script (`.bash_profile`, `.zshenv`, `fish_greeting.fish`, etc.). Next time you open the terminal you'll be greeted by the default _(or your own)_ fancy message!
+
 ## Installation
 
 ### Requirements
@@ -402,6 +408,7 @@ _In no particular order_
 - Use the screen width and height to break up the text
 - Add actual support for indentation
 - Conditional formatting/styling
+- Periodic updates (as if using `watch` command) but with [working colors](https://stackoverflow.com/questions/3793126/colors-with-unix-command-watch#3794222)
 
 ### Changelog
 
