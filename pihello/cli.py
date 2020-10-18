@@ -106,7 +106,6 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 def main():
     args = get_args()
     pihole = "{}://{}/{}".format(args.proto, args.addr, args.uri)
-    print(pihole)
     versions = flatten_dict(get_data(pihole, query="versions"))
     recent_blocked = {"recent_blocked": get_data(pihole, query="recentBlocked")}
     summary = flatten_dict(get_data(pihole))
