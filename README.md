@@ -45,6 +45,11 @@ pihello <your.pihole.address>
 
 ## Usage
 
+To run from the command line for standard HTTP pihole installs: pihello <your.pihole.address>
+To run from the command line for HTTPS pihole installs: pihello -p https <your.pihole.address>
+To run from the command line for HTTPS pihole installs w/custom path to pihole (e.g. '/pihole' instead of the default '/admin') : pihello -p https -u pihole <your.pihole.address>
+
+
 ### Configuration
 
 Create a configuration text file anywhere in your userspace.
