@@ -13,7 +13,7 @@ def get_args():
     parser.add_argument(
         "-i",
         "--indent",
-        help="specify the indentation step (default: 4)",
+        help="set the indentation step (default: 4)",
         default=4,
         type=int,
     )
@@ -27,14 +27,14 @@ def get_args():
     parser.add_argument(
         "-W",
         "--width",
-        help="specify the screen width (0 = no limit). Default: 80",
+        help="set the screen width (0 = no limit). (default: 80)",
         default=80,
         type=int,
     )
     parser.add_argument(
         "-H",
         "--height",
-        help="specify the screen height (0 = no limit). Default: 25",
+        help="set the screen height (0 = no limit). (default: 25)",
         default=25,
         type=int,
     )
@@ -50,16 +50,17 @@ def get_args():
         "-p",
         "--proto",
         dest="proto",
-        help='Instruct pihello to use HTTPS instead of HTTP',
-        default='http',
-        type=str,
+        help="use HTTPS instead of HTTP.",
+        action="store_const",
+        const="https",
+        default="http",
     )
     parser.add_argument(
         "-u",
         "--uri",
         dest="uri",
-        help='specify a different path (URI) for pihole, default "admin"',
-        default='admin',
+        help="set a different path (URI) for pihole. (default: /admin)",
+        default="admin",
         type=str,
     )
     args = parser.parse_args()
