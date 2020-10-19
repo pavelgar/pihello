@@ -33,22 +33,69 @@ Just install and add the `pihello <your.pihole.address>` command to your shell's
 
 Install:
 
-```bash
+```
 pip install pihello
 ```
 
 Run a preconfigured display (as seen above):
 
-```bash
+```
 pihello <your.pihole.address>
 ```
 
 ## Usage
 
-To run from the command line for standard HTTP pihole installs: pihello <your.pihole.address>
-To run from the command line for HTTPS pihole installs: pihello -p https <your.pihole.address>
-To run from the command line for HTTPS pihole installs w/custom path to pihole (e.g. '/pihole' instead of the default '/admin') : pihello -p https -u pihole <your.pihole.address>
+### Examples
 
+To run from the command line for standard HTTP Pi-hole installs:
+
+```
+pihello <your.pihole.address>
+```
+
+To run from the command line with a custom configuration file:
+
+```
+pihello <your.pihole.address> -f /path/to/config.txt
+```
+
+To run from the command line for HTTPS Pi-hole installs:
+
+```
+pihello <your.pihole.address> -p
+```
+
+To run from the command line for HTTPS Pi-hole installs w/custom path to pihole (e.g. `/pihole` instead of the default `/admin`) :
+
+```
+pihello <your.pihole.address> -p -u /pihole
+```
+
+Full command options:
+
+```
+$ pihello -h
+usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT] [-ts [TIMESTAMP]] [-p] [-u URI] addr
+
+positional arguments:
+  addr                  the address of your Pi-hole
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --version         show program's version number and exit
+  -i INDENT, --indent INDENT
+                        set the indentation step (default: 4)
+  -f FILE, --file FILE  specify path to the output config file
+  -c, --clip            set whether overflowing text will be discarded or added to the next line
+  -W WIDTH, --width WIDTH
+                        set the screen width (0 = no limit). (default: 80)
+  -H HEIGHT, --height HEIGHT
+                        set the screen height (0 = no limit). (default: 25)
+  -ts [TIMESTAMP], --timestamp [TIMESTAMP]
+                        add a timestamp as the first line. Pass optional strftime format string. Example "%H:%M - %a %d/%m/%y"
+  -p, --proto           use HTTPS instead of HTTP.
+  -u URI, --uri URI     set a different path (URI) for pihole. (default: /admin)
+```
 
 ### Configuration
 
@@ -67,14 +114,8 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 
 Run `pihello` with the `-f` flag pointing to the configuration file:
 
-```bash
-pihello -f /home/username/path_to/example.txt
 ```
-
-Other command options:
-
-```bash
-pihello --help
+pihello <your.pihole.address> -f /home/username/path_to/example.txt
 ```
 
 ### Variable injection
@@ -399,10 +440,14 @@ This list has currently 202 rows.
 ### Installation
 
 1. Install [Poetry](https://python-poetry.org/docs/)
-1. Clone the repo  
-   `git clone https://github.com/pavelgar/Pi-hello`
+1. Clone or fork the repo
 1. Install the dependencies  
-   `poetry install`
+   `poetry install`  
+   _This creates a virtual environment and installs the project into it._
+1. Activate the virtual environment  
+   `poetry shell`
+1. Run the project  
+   `pihello ...`
 
 ### TODO-list
 
@@ -414,6 +459,7 @@ _In no particular order_
 - Add actual support for indentation
 - Conditional formatting/styling
 - Periodic updates (as if using `watch` command) but with [working colors](https://stackoverflow.com/questions/3793126/colors-with-unix-command-watch#3794222)
+- Structured config using `.yaml` or some other type
 
 ### Changelog
 
