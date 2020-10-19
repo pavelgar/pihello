@@ -5,17 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2020-10-19
+
+### Added
+
+- Added option `-p` `-proto` for pihole instances with HTTPS. Thanks to [@jonzobrist](https://github.com/jonzobrist).
+- Added option `-u` `-uri` for setting different path to `/admin`. Thanks to [@jonzobrist](https://github.com/jonzobrist).
+- Added some usage examples
+
+### Fixed
+
+- Fixed missing newline after timestamp
+- Updated some command line argument descriptions
+
 ## [0.2.5] - 2020-10-16
 
 ### Added
 
-- Entrypoint to `pyproject.toml`. Now ``pihello` can be run as a standalone command!
+- Added entrypoint to `pyproject.toml`. Now `pihello` can be run as a standalone command!
 
 ## [0.2.4] - 2020-10-16
 
 ### Added
 
-- repository url and keywords to `pyproject.toml`
+- Added repository url and keywords to `pyproject.toml`
 
 ### Changed
 
@@ -25,21 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Example image
-  ![example output](https://user-images.githubusercontent.com/6000502/96100552-05e1e000-0ec4-11eb-8cce-9a5fa22abc7c.png)
+- Added example image  
+  ![example output](./example_output.svg)
 
 ### Fixed
 
-- Comparison between variables and None
+- Fixed comparison between variables and None
 - `--version` flag now displays the current version correctly
 
 ## [0.2.2] - 2020-10-15
 
 ### Added
 
-- Ability to read from file
-- Example script (`example.txt`)
-- _Normal_ style (ANSI code 10)
+- Added ability to read from file
+- Added example script (`example.txt`)
+- Added `normal` style (ANSI code 10)
 
 ### Changed
 
