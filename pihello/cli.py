@@ -8,7 +8,7 @@ from pihello import Console, __version__
 
 def get_args():
     parser = ArgumentParser(prog="pihello")
-    parser.add_argument("addr", help="the address of your PiHole")
+    parser.add_argument("addr", help="the address of your Pi-hole")
     parser.add_argument("-v", "--version", action="version", version=__version__)
     parser.add_argument(
         "-i",
@@ -85,7 +85,7 @@ def get_data(addr: str, query: str = "") -> dict:
     url = f"{addr}/api.php?{query}"
     with request.urlopen(url) as res:
         if res.status != 200:
-            raise f"HTTP error {res.status}. Check your Pi-hole address and connection."
+            raise f"HTTP(S) error {res.status}. Check your Pi-hole address and connection."
         raw = res.read()
         try:
             return json.loads(raw)
@@ -106,7 +106,7 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 
 def main():
     args = get_args()
-    pihole = "{}://{}/{}".format(args.proto, args.addr, args.uri)
+    pihole = "{}://{}/{}".format(args.proto, args.addr, args.uri.strip("/"))
     versions = flatten_dict(get_data(pihole, query="versions"))
     recent_blocked = {"recent_blocked": get_data(pihole, query="recentBlocked")}
     summary = flatten_dict(get_data(pihole))
@@ -123,7 +123,7 @@ def main():
             if isinstance(args.timestamp, bool)
             else datetime.now().strftime(args.timestamp)
         )
-        console.print(ts, end="")
+        console.print(ts)
 
     if args.file:
         with open(args.file) as f:
