@@ -46,6 +46,22 @@ def get_args():
         const=True,
         default=False,
     )
+    parser.add_argument(
+        "-p",
+        "--proto",
+        dest="proto",
+        help='Instruct pihello to use HTTPS instead of HTTP',
+        default='http',
+        type=str,
+    )
+    parser.add_argument(
+        "-u",
+        "--uri",
+        dest="uri",
+        help='specify a different path (URI) for pihole, default "admin"',
+        default='admin',
+        type=str,
+    )
     args = parser.parse_args()
     return args
 
@@ -65,7 +81,7 @@ def flatten_dict(d, tld="") -> dict:
 
 
 def get_data(addr: str, query: str = "") -> dict:
-    url = f"http://{addr}/admin/api.php?{query}"
+    url = f"{addr}/api.php?{query}"
     with request.urlopen(url) as res:
         if res.status != 200:
             raise f"HTTP error {res.status}. Check your Pi-hole address and connection."
@@ -89,9 +105,10 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 
 def main():
     args = get_args()
-    versions = flatten_dict(get_data(args.addr, query="versions"))
-    recent_blocked = {"recent_blocked": get_data(args.addr, query="recentBlocked")}
-    summary = flatten_dict(get_data(args.addr))
+    pihole = "{}://{}/{}".format(args.proto, args.addr, args.uri)
+    versions = flatten_dict(get_data(pihole, query="versions"))
+    recent_blocked = {"recent_blocked": get_data(pihole, query="recentBlocked")}
+    summary = flatten_dict(get_data(pihole))
 
     console = Console(
         args.width,
