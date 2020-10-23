@@ -106,6 +106,8 @@ Create a configuration text file anywhere in your userspace.
 
 **[example.txt](docs/example.txt)**
 
+> More example configurations can be found in [docs/SHOWCASE.md](docs/SHOWCASE.md).
+
 ```
 [cyan2]─────────────────────────────────────────────────────[]
 [white]PiHole[] ([green4]{status}[]) [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
