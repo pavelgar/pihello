@@ -8,10 +8,13 @@
   </p>
   <a href="https://pypi.org/project/pihello/">
     <img alt="PyPI" src="https://img.shields.io/pypi/v/pihello">
-  <a>
+  </a>
   <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/pihello">
   <img alt="PyPI - Wheel" src="https://img.shields.io/pypi/wheel/pihello">
   <img alt="PyPI - License" src="https://img.shields.io/pypi/l/pihello">
+  <a href="https://github.com/pavelgar/pihello#development">
+    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome!-green">
+  </a>
   <p></p>
   <img src="docs/example_output.svg">
 </div>
@@ -436,6 +439,9 @@ This list has currently 202 rows.
 ## Development
 
 **PRs welcome!**
+
+Showcase your configuration!  
+Submit a PR with your configuration and a screenshot.
 
 ### Installation
 
