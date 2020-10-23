@@ -4,7 +4,8 @@ Add your own by submitting a pull request!
 
 ### Default
 
-<img src="docs/example_output.svg">
+![deafult_example](example_output.svg)
+
 <details>
 <summary><b>code</b></summary>
 
