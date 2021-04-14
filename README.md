@@ -4,7 +4,7 @@
     <b>pihello</b> is a <u>simple</u> and <u>configurable</u>
     command-line tool used to display statistics of your Pi-hole.
     <br>
-    <i>No additional dependecies required.</i>
+    <i>No additional dependencies required.</i>
   </p>
   <a href="https://pypi.org/project/pihello/">
     <img alt="PyPI" src="https://img.shields.io/pypi/v/pihello">
