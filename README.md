@@ -30,7 +30,7 @@ Just install and add the `pihello <your.pihole.address>` command to your shell's
 ### Requirements
 
 - A running [pi-hole](https://pi-hole.net/) instance
-- [Python 3.8](https://www.python.org/downloads/)
+- [Python >=3.8](https://www.python.org/downloads/)
 
 ### Quickstart
 
