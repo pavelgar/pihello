@@ -9,6 +9,7 @@ from pihello import Console, __version__
 def get_args():
     parser = ArgumentParser(prog="pihello")
     parser.add_argument("addr", help="the address of your Pi-hole")
+    parser.add_argument("token", help="your Pi-hole API Token from settings")
     parser.add_argument("-v", "--version", action="version", version=__version__)
     parser.add_argument(
         "-i",
@@ -81,8 +82,8 @@ def flatten_dict(d, tld="") -> dict:
     return new_dict
 
 
-def get_data(addr: str, query: str = "") -> dict:
-    url = f"{addr}/api.php?{query}"
+def get_data(addr: str, token: str, query: str = "") -> dict:
+    url = f"{addr}/api.php?{query}&auth={token}"
     with request.urlopen(url) as res:
         if res.status != 200:
             raise f"HTTP(S) error {res.status}. Check your Pi-hole address and connection."
@@ -107,9 +108,10 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 def main():
     args = get_args()
     pihole = "{}://{}/{}".format(args.proto, args.addr, args.uri.strip("/"))
-    versions = flatten_dict(get_data(pihole, query="versions"))
-    recent_blocked = {"recent_blocked": get_data(pihole, query="recentBlocked")}
-    summary = flatten_dict(get_data(pihole))
+    auth_token = args.token
+    versions = flatten_dict(get_data(pihole, auth_token, query="versions"))
+    recent_blocked = {"recent_blocked": get_data(pihole, auth_token, query="recentBlocked")}
+    summary = flatten_dict(get_data(pihole, auth_token, query="summary"))
 
     console = Console(
         args.width,

@@ -23,7 +23,7 @@
 
 You frequently work in the terminal or ssh into your pi-hole host? Wouldn't it be nice to have a useful greeting message?
 
-Just install and add the `pihello <your.pihole.address>` command to your shell's startup script (`.bash_profile`, `.zshenv`, `fish_greeting.fish`, etc.). Next time you open the terminal you'll be greeted by the default _(or your own)_ fancy message!
+Just install and add the `pihello <your.pihole.address> <your.pihole.api-token>` command to your shell's startup script (`.bash_profile`, `.zshenv`, `fish_greeting.fish`, etc.). Next time you open the terminal you'll be greeted by the default _(or your own)_ fancy message!
 
 ## Installation
 
@@ -43,7 +43,7 @@ pip install pihello
 Run a preconfigured display (as seen above):
 
 ```
-pihello <your.pihole.address>
+pihello <your.pihole.address> <your.pihole.api-token>
 ```
 
 ## Usage
@@ -53,35 +53,36 @@ pihello <your.pihole.address>
 To run from the command line for standard HTTP Pi-hole installs:
 
 ```
-pihello <your.pihole.address>
+pihello <your.pihole.address> <your.pihole.api-token>
 ```
 
 To run from the command line with a custom configuration file:
 
 ```
-pihello <your.pihole.address> -f /path/to/config.txt
+pihello <your.pihole.address> <your.pihole.api-token> -f /path/to/config.txt
 ```
 
 To run from the command line for HTTPS Pi-hole installs:
 
 ```
-pihello <your.pihole.address> -p
+pihello <your.pihole.address> <your.pihole.api-token> -p
 ```
 
 To run from the command line for HTTPS Pi-hole installs w/custom path to pihole (e.g. `/pihole` instead of the default `/admin`) :
 
 ```
-pihello <your.pihole.address> -p -u /pihole
+pihello <your.pihole.address> <your.pihole.api-token> -p -u /pihole
 ```
 
 Full command options:
 
 ```
 $ pihello -h
-usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT] [-ts [TIMESTAMP]] [-p] [-u URI] addr
+usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT] [-ts [TIMESTAMP]] [-p] [-u URI] addr token
 
 positional arguments:
   addr                  the address of your Pi-hole
+  token                 your Pi-hole API Token from settings
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -120,7 +121,7 @@ Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] 
 Run `pihello` with the `-f` flag pointing to the configuration file:
 
 ```
-pihello <your.pihole.address> -f /home/username/path_to/example.txt
+pihello <your.pihole.address> <your.pihole.api-token> -f /home/username/path_to/example.txt
 ```
 
 ### Variable injection
@@ -182,7 +183,7 @@ PiHole API's variables can be easily injected by using curly braces `{ }`.
 
 - Text styling is done by inserting style tags `[ ]`
 - Color prepended by a semicolon `:` indicates a **background color**
-- Color prepended by an underline `_` indicates an **underlined color**  
+- Color prepended by an underline `_` indicates an **underlined color**
   _AFAIK, only supported in Kitty, VTE, mintty and iTerm2._
 
 **Syntax:** `[<style> <foreground_color> :<background_color> _<underline_color>]`
@@ -227,8 +228,8 @@ There is a number of ways to define a color:
 <details>
 <summary><b>Available color names</b></summary>
 
-These are [Xterm](https://jonasjacek.github.io/colors/) color names.  
-Duplicate color names have been removed keeping the last (usually brightest) occurence.  
+These are [Xterm](https://jonasjacek.github.io/colors/) color names.
+Duplicate color names have been removed keeping the last (usually brightest) occurence.
 This list has currently 202 rows.
 
 | Color # | Color name          |    HEX    |        RGB         |
@@ -442,26 +443,27 @@ This list has currently 202 rows.
 
 **PRs welcome!**
 
-Showcase your configuration!  
+Showcase your configuration!
 Submit a PR with your configuration and a screenshot.
 
 ### Installation
 
 1. Install [Poetry](https://python-poetry.org/docs/)
 1. Clone or fork the repo
-1. Install the dependencies  
-   `poetry install`  
+1. Install the dependencies
+   `poetry install`
    _This creates a virtual environment and installs the project into it._
-1. Activate the virtual environment  
+1. Activate the virtual environment
    `poetry shell`
-1. Run the project  
+1. Run the project
    `pihello ...`
 
 ### TODO-list
 
 _In no particular order_
 
-- Authentication for access to more variables
+- ~~Authentication for access to more variables~~
+- Start accessing more variables
 - Justification styling similar to Python's `ljust()` and `rjust()`
 - Use the screen width and height to break up the text
 - Add actual support for indentation
