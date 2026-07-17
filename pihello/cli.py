@@ -1,7 +1,8 @@
 import sys
 import json
+import ssl
 from urllib import request, error
-from datetime import datetime
+from datetime import datetime, timezone
 from argparse import ArgumentParser
 from pihello import Console, __version__
 
@@ -9,7 +10,7 @@ from pihello import Console, __version__
 def get_args():
     parser = ArgumentParser(prog="pihello")
     parser.add_argument("addr", help="the address of your Pi-hole")
-    parser.add_argument("token", help="your Pi-hole API Token from settings")
+    parser.add_argument("password", help="your Pi-hole app password from settings")
     parser.add_argument("-v", "--version", action="version", version=__version__)
     parser.add_argument(
         "-i",
@@ -82,9 +83,9 @@ def flatten_dict(d, tld="") -> dict:
     return new_dict
 
 
-def get_data(addr: str, token: str, query: str = "") -> dict:
-    url = f"{addr}/api.php?{query}&auth={token}"
-    with request.urlopen(url) as res:
+def get_data(addr: str, sid: str, ctx: ssl.SSLContext, query: str = "") -> dict:
+    url = f"{addr}/api/{query}?sid={sid}"
+    with request.urlopen(url, context=ctx) as res:
         if res.status != 200:
             raise f"HTTP(S) error {res.status}. Check your Pi-hole address and connection."
         raw = res.read()
@@ -95,29 +96,92 @@ def get_data(addr: str, token: str, query: str = "") -> dict:
     return None
 
 
+def auth(addr: str, password: str, ctx: ssl.SSLContext) -> str:
+    url = f"{addr}/api/auth"
+    data={'password': password}
+    json_bytes = json.dumps(data).encode('utf-8')
+
+    req = request.Request(url, data=json_bytes, method="POST")
+    req.add_header('Content-Type', 'application/json; charset=utf-8')
+
+    try:
+        with request.urlopen(req, context=ctx) as response:
+            auth_response = json.loads(response.read().decode("utf-8"))
+        sid = auth_response.get("session", {}).get("sid")
+
+    except error.HTTPError as e:
+        print(f"\n[HTTP Error {e.code}]: {e.reason}")
+        error_details = e.read().decode('utf-8')
+        print(f"Server Message: {error_details}")
+        return ""
+    except Exception as e:
+        print(f'General failure: {e}')
+        return ""
+    return sid
+
+
+def logout(addr: str, sid: str, ctx: ssl.SSLContext) -> bool:
+    url = f"{addr}/api/auth"
+
+    req = request.Request(url, method="DELETE")
+    req.add_header("sid", sid)
+
+    try:
+        with request.urlopen(req, context=ctx) as response:
+            # HTTP 204 (No Content) is a successful logout
+            return response.getcode() == 204
+    except Exception as e:
+        print(f"Failed to logout: {e}")
+        return False
+
+
+def time_ago(unix_timestamp: int) -> dict:
+    now = datetime.now(timezone.utc)
+    past_time = datetime.fromtimestamp(unix_timestamp, timezone.utc)
+
+    delta = now - past_time
+
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+
+    return {'days': days, 'hours': hours, 'minutes': minutes}
+
 DEFAULT_CONTENT = """\
 [cyan2]─────────────────────────────────────────────────────[]
-[white]PiHole[] ([green4]{status}[]) [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
+[white]PiHole[] ([green4]{blocking}[]) [lightgreen]{version.core.local.version}[white], Web [lightgreen]{version.web.local.version}[white], FTL [lightgreen]{version.ftl.local.version}
 [cyan2]─────────────────────────────────────────────────────[]
-Blocking [darkcyan]{domains_being_blocked}[] domains for [steelblue]{unique_clients}[] clients
-Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] queries [underline]today[] ([steelblue]{ads_percentage_today}%[])
-[grey37]Gravity last updated [bold grey50]{gravity_last_updated.relative.days}[grey37] days [bold grey50]{gravity_last_updated.relative.hours}[grey37] hours and [bold grey50]{gravity_last_updated.relative.minutes}[grey37] minutes ago\
+Blocking [darkcyan]{gravity.domains_being_blocked}[] domains for [steelblue]{clients.active}[] clients
+Blocked [fuchsia]{queries.blocked}[] out of [lightgreen]{queries.total}[] queries [underline]today[] ([steelblue]{queries.percent_blocked}%[])
+[grey37]Gravity last updated [bold grey50]{days}[grey37] days [bold grey50]{hours}[grey37] hours and [bold grey50]{minutes}[grey37] minutes ago\
 """
 
 
 def main():
     args = get_args()
-    pihole = "{}://{}/{}".format(args.proto, args.addr, args.uri.strip("/"))
-    auth_token = args.token
-    versions = flatten_dict(get_data(pihole, auth_token, query="versions"))
-    recent_blocked = {"recent_blocked": get_data(pihole, auth_token, query="recentBlocked")}
-    summary = flatten_dict(get_data(pihole, auth_token, query="summary"))
+    pihole = "{}://{}".format(args.proto, args.addr) #, args.uri.strip("/"))
+
+    # Create an unverified SSL context
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    app_password = args.password
+    sid = auth(pihole, app_password, ctx)
+    versions = flatten_dict(get_data(pihole, sid, ctx, query="info/version"))
+    blocking = flatten_dict(get_data(pihole, sid, ctx, query="dns/blocking"))
+    summary = flatten_dict(get_data(pihole, sid, ctx, query="stats/summary"))
+
+    logout(pihole, sid, ctx)
 
     console = Console(
         args.width,
         args.height,
         tab_size=args.indent,
-        variables={**versions, **summary, **recent_blocked},
+        variables={**versions,
+                   **summary,
+                   **blocking,
+                   **time_ago(summary['gravity.last_update'])},
     )
     if args.timestamp:
         ts = (
