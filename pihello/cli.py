@@ -58,12 +58,10 @@ def get_args():
         default="http",
     )
     parser.add_argument(
-        "-u",
-        "--uri",
-        dest="uri",
-        help="set a different path (URI) for pihole. (default: /admin)",
-        default="admin",
-        type=str,
+        "-k",
+        "--insecure",
+        help="skip TLS certificate verification (for self-signed Pi-hole certs)",
+        action="store_true",
     )
     args = parser.parse_args()
     return args
@@ -84,10 +82,10 @@ def flatten_dict(d, tld="") -> dict:
 
 
 def get_data(addr: str, sid: str, ctx: ssl.SSLContext, query: str = "") -> dict:
-    url = f"{addr}/api/{query}?sid={sid}"
-    with request.urlopen(url, context=ctx) as res:
-        if res.status != 200:
-            raise f"HTTP(S) error {res.status}. Check your Pi-hole address and connection."
+    url = f"{addr}/api/{query}"
+    req = request.Request(url)
+    req.add_header("sid", sid)
+    with request.urlopen(req, context=ctx) as res:
         raw = res.read()
         try:
             return json.loads(raw)
@@ -98,11 +96,11 @@ def get_data(addr: str, sid: str, ctx: ssl.SSLContext, query: str = "") -> dict:
 
 def auth(addr: str, password: str, ctx: ssl.SSLContext) -> str:
     url = f"{addr}/api/auth"
-    data={'password': password}
-    json_bytes = json.dumps(data).encode('utf-8')
+    data = {"password": password}
+    json_bytes = json.dumps(data).encode("utf-8")
 
     req = request.Request(url, data=json_bytes, method="POST")
-    req.add_header('Content-Type', 'application/json; charset=utf-8')
+    req.add_header("Content-Type", "application/json; charset=utf-8")
 
     try:
         with request.urlopen(req, context=ctx) as response:
@@ -111,11 +109,11 @@ def auth(addr: str, password: str, ctx: ssl.SSLContext) -> str:
 
     except error.HTTPError as e:
         print(f"\n[HTTP Error {e.code}]: {e.reason}")
-        error_details = e.read().decode('utf-8')
+        error_details = e.read().decode("utf-8")
         print(f"Server Message: {error_details}")
         return ""
     except Exception as e:
-        print(f'General failure: {e}')
+        print(f"General failure: {e}")
         return ""
     return sid
 
@@ -145,7 +143,12 @@ def time_ago(unix_timestamp: int) -> dict:
     hours, remainder = divmod(delta.seconds, 3600)
     minutes, _ = divmod(remainder, 60)
 
-    return {'days': days, 'hours': hours, 'minutes': minutes}
+    return {
+        "gravity.relative.days": days,
+        "gravity.relative.hours": hours,
+        "gravity.relative.minutes": minutes,
+    }
+
 
 DEFAULT_CONTENT = """\
 [cyan2]─────────────────────────────────────────────────────[]
@@ -153,35 +156,46 @@ DEFAULT_CONTENT = """\
 [cyan2]─────────────────────────────────────────────────────[]
 Blocking [darkcyan]{gravity.domains_being_blocked}[] domains for [steelblue]{clients.active}[] clients
 Blocked [fuchsia]{queries.blocked}[] out of [lightgreen]{queries.total}[] queries [underline]today[] ([steelblue]{queries.percent_blocked}%[])
-[grey37]Gravity last updated [bold grey50]{days}[grey37] days [bold grey50]{hours}[grey37] hours and [bold grey50]{minutes}[grey37] minutes ago\
+[grey37]Gravity last updated [bold grey50]{gravity.relative.days}[grey37] days [bold grey50]{gravity.relative.hours}[grey37] hours and [bold grey50]{gravity.relative.minutes}[grey37] minutes ago\
 """
 
 
 def main():
     args = get_args()
-    pihole = "{}://{}".format(args.proto, args.addr) #, args.uri.strip("/"))
+    pihole = "{}://{}".format(args.proto, args.addr)
 
-    # Create an unverified SSL context
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    if args.insecure:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
 
-    app_password = args.password
-    sid = auth(pihole, app_password, ctx)
-    versions = flatten_dict(get_data(pihole, sid, ctx, query="info/version"))
-    blocking = flatten_dict(get_data(pihole, sid, ctx, query="dns/blocking"))
-    summary = flatten_dict(get_data(pihole, sid, ctx, query="stats/summary"))
+    sid = auth(pihole, args.password, ctx)
+    if not sid:
+        sys.exit(1)
 
-    logout(pihole, sid, ctx)
+    try:
+        versions = flatten_dict(get_data(pihole, sid, ctx, query="info/version"))
+        blocking = flatten_dict(get_data(pihole, sid, ctx, query="dns/blocking"))
+        summary = flatten_dict(get_data(pihole, sid, ctx, query="stats/summary"))
+        blocked = get_data(pihole, sid, ctx, query="stats/recent_blocked")["blocked"]
+        recent_blocked = {"recent_blocked": blocked[0] if blocked else ""}
+    except (error.HTTPError, error.URLError) as e:
+        print(f"Failed to fetch data from Pi-hole: {e}")
+        sys.exit(1)
+    finally:
+        logout(pihole, sid, ctx)
 
     console = Console(
         args.width,
         args.height,
         tab_size=args.indent,
-        variables={**versions,
-                   **summary,
-                   **blocking,
-                   **time_ago(summary['gravity.last_update'])},
+        variables={
+            **versions,
+            **summary,
+            **blocking,
+            **recent_blocked,
+            **time_ago(summary["gravity.last_update"]),
+        },
     )
     if args.timestamp:
         ts = (

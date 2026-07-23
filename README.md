@@ -23,14 +23,18 @@
 
 You frequently work in the terminal or ssh into your pi-hole host? Wouldn't it be nice to have a useful greeting message?
 
-Just install and add the `pihello <your.pihole.address> <your.pihole.api-token>` command to your shell's startup script (`.bash_profile`, `.zshenv`, `fish_greeting.fish`, etc.). Next time you open the terminal you'll be greeted by the default _(or your own)_ fancy message!
+Just install and add the `pihello <your.pihole.address> <your.pihole.app-password>` command to your shell's startup script (`.bash_profile`, `.zshenv`, `fish_greeting.fish`, etc.). Next time you open the terminal you'll be greeted by the default _(or your own)_ fancy message!
 
 ## Installation
 
 ### Requirements
 
-- A running [pi-hole](https://pi-hole.net/) instance
+- A running [pi-hole](https://pi-hole.net/) **v6+** instance
+  _(for Pi-hole v5, use `pihello==0.3.0`)_
 - [Python >=3.8](https://www.python.org/downloads/)
+
+> Authentication uses a Pi-hole **app password**: create one in the Pi-hole web
+> interface under _Settings → Web interface / API → Configure app password_.
 
 ### Quickstart
 
@@ -43,7 +47,7 @@ pip install pihello
 Run a preconfigured display (as seen above):
 
 ```
-pihello <your.pihole.address> <your.pihole.api-token>
+pihello <your.pihole.address> <your.pihole.app-password>
 ```
 
 ## Usage
@@ -53,52 +57,54 @@ pihello <your.pihole.address> <your.pihole.api-token>
 To run from the command line for standard HTTP Pi-hole installs:
 
 ```
-pihello <your.pihole.address> <your.pihole.api-token>
+pihello <your.pihole.address> <your.pihole.app-password>
 ```
 
 To run from the command line with a custom configuration file:
 
 ```
-pihello <your.pihole.address> <your.pihole.api-token> -f /path/to/config.txt
+pihello <your.pihole.address> <your.pihole.app-password> -f /path/to/config.txt
 ```
 
 To run from the command line for HTTPS Pi-hole installs:
 
 ```
-pihello <your.pihole.address> <your.pihole.api-token> -p
+pihello <your.pihole.address> <your.pihole.app-password> -p
 ```
 
-To run from the command line for HTTPS Pi-hole installs w/custom path to pihole (e.g. `/pihole` instead of the default `/admin`) :
+To run from the command line for HTTPS Pi-hole installs with a self-signed certificate (skips TLS certificate verification):
 
 ```
-pihello <your.pihole.address> <your.pihole.api-token> -p -u /pihole
+pihello <your.pihole.address> <your.pihole.app-password> -p -k
 ```
 
 Full command options:
 
 ```
 $ pihello -h
-usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT] [-ts [TIMESTAMP]] [-p] [-u URI] addr token
+usage: pihello [-h] [-v] [-i INDENT] [-f FILE] [-c] [-W WIDTH] [-H HEIGHT]
+               [-ts [TIMESTAMP]] [-p] [-k]
+               addr password
 
 positional arguments:
   addr                  the address of your Pi-hole
-  token                 your Pi-hole API Token from settings
+  password              your Pi-hole app password from settings
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
-  -i INDENT, --indent INDENT
-                        set the indentation step (default: 4)
-  -f FILE, --file FILE  specify path to the output config file
-  -c, --clip            set whether overflowing text will be discarded or added to the next line
-  -W WIDTH, --width WIDTH
-                        set the screen width (0 = no limit). (default: 80)
-  -H HEIGHT, --height HEIGHT
-                        set the screen height (0 = no limit). (default: 25)
-  -ts [TIMESTAMP], --timestamp [TIMESTAMP]
-                        add a timestamp as the first line. Pass optional strftime format string. Example "%H:%M - %a %d/%m/%y"
+  -i, --indent INDENT   set the indentation step (default: 4)
+  -f, --file FILE       specify path to the output config file
+  -c, --clip            set whether overflowing text will be discarded or
+                        added to the next line
+  -W, --width WIDTH     set the screen width (0 = no limit). (default: 80)
+  -H, --height HEIGHT   set the screen height (0 = no limit). (default: 25)
+  -ts, --timestamp [TIMESTAMP]
+                        add a timestamp as the first line. Pass optional
+                        strftime format string. Example "%H:%M - %a %d/%m/%y"
   -p, --proto           use HTTPS instead of HTTP.
-  -u URI, --uri URI     set a different path (URI) for pihole. (default: /admin)
+  -k, --insecure        skip TLS certificate verification (for self-signed Pi-
+                        hole certs)
 ```
 
 ### Configuration
@@ -111,17 +117,17 @@ Create a configuration text file anywhere in your userspace.
 
 ```
 [cyan2]─────────────────────────────────────────────────────[]
-[white]PiHole[] ([green4]{status}[]) [lightgreen]{core_current}[white], Web [lightgreen]{web_current}[white], FTL [lightgreen]{FTL_current}
+[white]PiHole[] ([green4]{blocking}[]) [lightgreen]{version.core.local.version}[white], Web [lightgreen]{version.web.local.version}[white], FTL [lightgreen]{version.ftl.local.version}
 [cyan2]─────────────────────────────────────────────────────[]
-Blocking [darkcyan]{domains_being_blocked}[] domains for [steelblue]{unique_clients}[] clients
-Blocked [fuchsia]{ads_blocked_today}[] out of [lightgreen]{dns_queries_today}[] queries [underline]today[] ([steelblue]{ads_percentage_today}%[])
-[grey37]Gravity last updated [bold grey50]{gravity_last_updated.relative.days}[grey37] days [bold grey50]{gravity_last_updated.relative.hours}[grey37] hours and [bold grey50]{gravity_last_updated.relative.minutes}[grey37] minutes ago
+Blocking [darkcyan]{gravity.domains_being_blocked}[] domains for [steelblue]{clients.active}[] clients
+Blocked [fuchsia]{queries.blocked}[] out of [lightgreen]{queries.total}[] queries [underline]today[] ([steelblue]{queries.percent_blocked}%[])
+[grey37]Gravity last updated [bold grey50]{gravity.relative.days}[grey37] days [bold grey50]{gravity.relative.hours}[grey37] hours and [bold grey50]{gravity.relative.minutes}[grey37] minutes ago
 ```
 
 Run `pihello` with the `-f` flag pointing to the configuration file:
 
 ```
-pihello <your.pihole.address> <your.pihole.api-token> -f /home/username/path_to/example.txt
+pihello <your.pihole.address> <your.pihole.app-password> -f /home/username/path_to/example.txt
 ```
 
 ### Variable injection
@@ -130,7 +136,7 @@ PiHole API's variables can be easily injected by using curly braces `{ }`.
 
 **Syntax**: `{variable_name}`
 
-**Example:** `"PiHole {core_current} (FTL: {FTL_current})"`
+**Example:** `"PiHole {version.core.local.version} (FTL: {version.ftl.local.version})"`
 
 **Notes:**
 
@@ -140,42 +146,94 @@ PiHole API's variables can be easily injected by using curly braces `{ }`.
 <details>
 <summary><b>Available variables</b></summary>
 
-| Key                                     |              Example value | Type  |
-| :-------------------------------------- | -------------------------: | :---: |
-| `recent_blocked`                        | `ssl.google-analytics.com` |  str  |
-| `core_update`                           |                    `False` | bool  |
-| `web_update`                            |                    `False` | bool  |
-| `FTL_update`                            |                    `False` | bool  |
-| `core_current`                          |                   `v5.1.2` |  str  |
-| `web_current`                           |                   `v5.1.1` |  str  |
-| `FTL_current`                           |                     `v5.2` |  str  |
-| `core_latest`                           |                   `v5.1.2` |  str  |
-| `web_latest`                            |                   `v5.1.1` |  str  |
-| `FTL_latest`                            |                     `v5.2` |  str  |
-| `core_branch`                           |                   `master` |  str  |
-| `web_branch`                            |                   `master` |  str  |
-| `FTL_branch`                            |                   `master` |  str  |
-| `domains_being_blocked`                 |                    `94541` |  int  |
-| `dns_queries_today`                     |                    `14324` |  int  |
-| `ads_blocked_today`                     |                     `3917` |  int  |
-| `ads_percentage_today`                  |                `27.345713` | float |
-| `unique_domains`                        |                     `5967` |  int  |
-| `queries_forwarded`                     |                     `7942` |  int  |
-| `queries_cached`                        |                     `2465` |  int  |
-| `clients_ever_seen`                     |                       `12` |  int  |
-| `unique_clients`                        |                        `9` |  int  |
-| `dns_queries_all_types`                 |                    `14324` |  int  |
-| `reply_NODATA`                          |                      `423` |  int  |
-| `reply_NXDOMAIN`                        |                      `223` |  int  |
-| `reply_CNAME`                           |                     `3784` |  int  |
-| `reply_IP`                              |                     `8768` |  int  |
-| `privacy_level`                         |                        `0` |  int  |
-| `status`                                |                  `enabled` |  str  |
-| `gravity_last_updated.file_exists`      |                     `True` | bool  |
-| `gravity_last_updated.absolute`         |               `1602374786` |  int  |
-| `gravity_last_updated.relative.days`    |                        `1` |  int  |
-| `gravity_last_updated.relative.hours`   |                       `12` |  int  |
-| `gravity_last_updated.relative.minutes` |                       `29` |  int  |
+These are generated from the Pi-hole v6 API endpoints `info/version`, `stats/summary`, `dns/blocking` and `stats/recent_blocked`, flattened with dots. Values shown are examples.
+
+| Key | Example value | Type |
+| :--- | ---: | :---: |
+| `blocking` | `enabled` | str |
+| `clients.active` | `0` | int |
+| `clients.total` | `0` | int |
+| `gravity.domains_being_blocked` | `89947` | int |
+| `gravity.last_update` | `1784843683` | int |
+| `gravity.relative.days` | `1` | int |
+| `gravity.relative.hours` | `12` | int |
+| `gravity.relative.minutes` | `29` | int |
+| `queries.blocked` | `0` | int |
+| `queries.cached` | `0` | int |
+| `queries.forwarded` | `0` | int |
+| `queries.frequency` | `0` | int |
+| `queries.percent_blocked` | `0` | int |
+| `queries.replies.BLOB` | `0` | int |
+| `queries.replies.CNAME` | `0` | int |
+| `queries.replies.DNSSEC` | `0` | int |
+| `queries.replies.DOMAIN` | `0` | int |
+| `queries.replies.IP` | `0` | int |
+| `queries.replies.NODATA` | `0` | int |
+| `queries.replies.NONE` | `0` | int |
+| `queries.replies.NOTIMP` | `0` | int |
+| `queries.replies.NXDOMAIN` | `0` | int |
+| `queries.replies.OTHER` | `0` | int |
+| `queries.replies.REFUSED` | `0` | int |
+| `queries.replies.RRNAME` | `0` | int |
+| `queries.replies.SERVFAIL` | `0` | int |
+| `queries.replies.UNKNOWN` | `0` | int |
+| `queries.status.CACHE` | `0` | int |
+| `queries.status.CACHE_STALE` | `0` | int |
+| `queries.status.DBBUSY` | `0` | int |
+| `queries.status.DENYLIST` | `0` | int |
+| `queries.status.DENYLIST_CNAME` | `0` | int |
+| `queries.status.EXTERNAL_BLOCKED_EDE15` | `0` | int |
+| `queries.status.EXTERNAL_BLOCKED_IP` | `0` | int |
+| `queries.status.EXTERNAL_BLOCKED_NULL` | `0` | int |
+| `queries.status.EXTERNAL_BLOCKED_NXRA` | `0` | int |
+| `queries.status.FORWARDED` | `0` | int |
+| `queries.status.GRAVITY` | `0` | int |
+| `queries.status.GRAVITY_CNAME` | `0` | int |
+| `queries.status.IN_PROGRESS` | `0` | int |
+| `queries.status.REGEX` | `0` | int |
+| `queries.status.REGEX_CNAME` | `0` | int |
+| `queries.status.RETRIED` | `0` | int |
+| `queries.status.RETRIED_DNSSEC` | `0` | int |
+| `queries.status.SPECIAL_DOMAIN` | `0` | int |
+| `queries.status.UNKNOWN` | `0` | int |
+| `queries.total` | `0` | int |
+| `queries.types.A` | `0` | int |
+| `queries.types.AAAA` | `0` | int |
+| `queries.types.ANY` | `0` | int |
+| `queries.types.DNSKEY` | `0` | int |
+| `queries.types.DS` | `0` | int |
+| `queries.types.HTTPS` | `0` | int |
+| `queries.types.MX` | `0` | int |
+| `queries.types.NAPTR` | `0` | int |
+| `queries.types.NS` | `0` | int |
+| `queries.types.OTHER` | `0` | int |
+| `queries.types.PTR` | `0` | int |
+| `queries.types.RRSIG` | `0` | int |
+| `queries.types.SOA` | `0` | int |
+| `queries.types.SRV` | `0` | int |
+| `queries.types.SVCB` | `0` | int |
+| `queries.types.TXT` | `0` | int |
+| `queries.unique_domains` | `0` | int |
+| `recent_blocked` | `ssl.google-analytics.com` | str |
+| `timer` | `None` | str |
+| `version.core.local.branch` | `master` | str |
+| `version.core.local.hash` | `f47b8ede` | str |
+| `version.core.local.version` | `v6.4.3` | str |
+| `version.core.remote.hash` | `f47b8ede` | str |
+| `version.core.remote.version` | `v6.4.3` | str |
+| `version.docker.local` | `2026.07.2` | str |
+| `version.docker.remote` | `2026.07.2` | str |
+| `version.ftl.local.branch` | `master` | str |
+| `version.ftl.local.date` | `2026-07-06 21:07:11 +0100` | str |
+| `version.ftl.local.hash` | `fa65a88f` | str |
+| `version.ftl.local.version` | `v6.7` | str |
+| `version.ftl.remote.hash` | `fa65a88f` | str |
+| `version.ftl.remote.version` | `v6.7` | str |
+| `version.web.local.branch` | `master` | str |
+| `version.web.local.hash` | `b2a40784` | str |
+| `version.web.local.version` | `v6.6` | str |
+| `version.web.remote.hash` | `b2a40784` | str |
+| `version.web.remote.version` | `v6.6` | str |
 
 </details>
 
