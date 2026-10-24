@@ -1,0 +1,34 @@
+name: Bug report
+description: pihello shows something wrong, crashes or can't connect
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: The command you ran, what you expected and what you got (paste the full error).
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`pihello --version` and `pihello doctor` output"
+      description: Check it for anything private before posting. Never paste your password.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: pihole
+    attributes:
+      label: Pi-hole version
+      description: Core / Web / FTL versions (Settings → System), or the Docker image tag.
+      placeholder: "Core v6.1.4, Web v6.2.1, FTL v6.2.3 (Docker 2025.08.0)"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, terminal and Python version
+      placeholder: "Raspberry Pi OS 12, GNOME Terminal, Python 3.11.2, installed with pipx"
+    validations:
+      required: true

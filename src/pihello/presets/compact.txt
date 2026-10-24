@@ -1,0 +1,4 @@
+{# compact: three short lines: status, today's queries, gravity. #}
+[@title]Pi-hole [@value]{version.core.local.version}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted] · [@accent]{clients.active|number}[@muted] clients[@muted]{updates.available|if(" · ")}[@warn]{updates.available|if("↑ update")}
+[@accent]{queries.total|number}[@muted] queries · [@highlight]{queries.blocked|number}[@muted] blocked · [@highlight]{queries.percent_blocked|percent}
+[@info]{gravity.domains_being_blocked|number}[@muted] domains on lists · updated {gravity.last_update|ago}[]

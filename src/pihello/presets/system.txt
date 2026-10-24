@@ -1,0 +1,13 @@
+{# system: the host Pi-hole runs on: kernel, uptime, load, CPU, memory and #}
+{# swap bars, temperature and network. Missing sensors/gateway show "n/a". #}
+{# CPU load is the 1-minute load average relative to the number of cores.  #}
+[@title]{host.uname.nodename|default("pi-hole")}[@muted]{host.model|default("")|truncate(36)|prefix(" · ")}{host.uname.machine|prefix(" (")|suffix(")")|default("")}
+[@border]{"─"|repeat(60)}
+[@label]Kernel   [@value]{host.uname.sysname|default("Linux")} {host.uname.release|default("n/a")|truncate(40)}
+[@label]Uptime   [@value]{system.uptime|duration}[@muted] · [@value]{system.procs|number}[@muted] processes · FTL up [@value]{ftl.uptime|duration|default("n/a")}
+[@label]Load     [@value]{system.cpu.load.raw.0:.2f} {system.cpu.load.raw.1:.2f} {system.cpu.load.raw.2:.2f}[@muted] on [@value]{system.cpu.nprocs}[@muted] CPUs
+[@label]CPU load [@accent]{system.cpu.load.percent.0|bar(30)} [@value]{system.cpu.load.percent.0|percent|rjust(6)}[@muted] · FTL {ftl.%cpu|percent|default("n/a")}
+[@label]Memory   [@accent]{system.memory.ram.%used|bar(30)} [@value]{system.memory.ram.%used|percent|rjust(6)}[@muted] of {system.memory.ram.total|bytes(KiB)}
+[@label]Swap     [@accent]{system.memory.swap.%used|default(0)|bar(30)} [@value]{system.memory.swap.%used|default(0)|percent|rjust(6)}[@muted] of {system.memory.swap.total|default(0)|bytes(KiB)}
+[@label]Temp     [@value]{sensors.cpu_temp|round(1)|default("n/a")}[@muted]°{sensors.unit|default("C")} · limit {sensors.hot_limit|default("n/a")}°{sensors.unit|default("C")}
+[@label]Network  [@info]{network.address|default("n/a")}[@muted] on [@value]{network.interface|default("n/a")}[@muted] · gateway [@value]{network.gateway|default("n/a")}[]

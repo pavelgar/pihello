@@ -1,0 +1,119 @@
+name: Integration
+
+# End-to-end tests against real Pi-hole containers, one image per FTL minor
+# release (the versions recorded under tests/fixtures/pihole/) plus `latest`.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/integration.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/integration.yml"
+  schedule:
+    - cron: "23 5 * * 1" # Mondays 05:23 UTC: catches new `latest` images
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: "Test only this pihole/pihole image tag (blank = full matrix)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: Select Pi-hole versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tags: ${{ steps.select.outputs.tags }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tests/fixtures
+      - id: select
+        env:
+          REQUESTED: ${{ inputs.image-tag }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, re
+          from pathlib import Path
+
+          # Used only until fixtures are recorded: first Docker tag of each FTL minor.
+          FALLBACK = ["2025.02.0", "2025.03.1", "2025.05.0", "2025.10.0", "2025.11.1",
+                      "2026.02.0", "2026.04.0", "2026.07.0", "2026.10.0"]
+          requested = os.environ.get("REQUESTED", "").strip()
+          if requested:
+              if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", requested):
+                  raise SystemExit(f"::error::Invalid image tag: {requested!r}")
+              tags = [requested]
+          else:
+              fixtures = Path("tests/fixtures/pihole")
+              tags = sorted(p.parent.name for p in fixtures.glob("*/responses.json")
+                            if re.fullmatch(r"\d{4}\.\d{2}\.\d+", p.parent.name))
+              tags = (tags or FALLBACK) + ["latest"]
+          print("Pi-hole image tags:", ", ".join(tags))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"tags={json.dumps(tags)}\n")
+          EOF
+
+  integration:
+    name: Pi-hole ${{ matrix.tag }}
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.versions.outputs.tags) }}
+    env:
+      PIHELLO_IT_IMAGE: docker.io/pihole/pihole:${{ matrix.tag }}
+      PIHELLO_IT_RUNTIME: docker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - name: Pull image
+        run: |
+          for attempt in 1 2 3; do
+            docker pull --quiet "$PIHELLO_IT_IMAGE" && exit 0
+            sleep $((attempt * 20))
+          done
+          exit 1
+      - run: uv sync --locked
+      - name: pytest -m integration
+        run: uv run --no-sync pytest -m integration --color=yes -v
+      - name: Collect container logs
+        if: failure()
+        run: |
+          mkdir -p it-logs
+          docker ps -a > it-logs/containers.txt
+          for id in $(docker ps -aq); do
+            name=$(docker inspect --format '{{.Name}}' "$id" | tr -d /)
+            docker logs "$id" > "it-logs/$name.log" 2>&1 || true
+          done
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: it-logs-${{ matrix.tag }}
+          path: it-logs/
+          if-no-files-found: ignore
+          retention-days: 7

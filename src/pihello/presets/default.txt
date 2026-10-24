@@ -1,0 +1,12 @@
+{# default: pihello's flagship greeting, fits 60 columns.                  #}
+{# Status (with disable timer and update hint), versions with ↑ markers,  #}
+{# today's queries with a blocked-percentage bar, clients, gravity and    #}
+{# the most recently blocked domain. Works with every theme.              #}
+[@title]Pi-hole[@muted] on [@subtitle]{pihole.host}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if("  ")}[@warn]{updates.available|if("↑ update available")}
+[@border]{"─"|repeat(60)}
+[@label]Versions   [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}
+[@label]Queries    [@accent]{queries.total|number}[@muted] today · [@highlight]{queries.blocked|number}[@muted] blocked
+[@label]Blocked    [@highlight]{queries.percent_blocked|bar(36)} {queries.percent_blocked|percent}
+[@label]Clients    [@accent]{clients.active|number}[@muted] active · [@value]{clients.total|number}[@muted] known
+[@label]Gravity    [@info]{gravity.domains_being_blocked|number}[@muted] domains · updated [@value]{gravity.last_update|ago}
+[@label]Last block [@highlight]{recent_blocked|default("none yet")|truncate(48)}[]

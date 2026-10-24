@@ -1,0 +1,5487 @@
+{
+  "meta": {
+    "docker_tag": "2026.06.0",
+    "versions": {
+      "core": "v6.4.2",
+      "web": "v6.5.1",
+      "ftl": "v6.6.2",
+      "docker": "2026.06.0"
+    },
+    "password": "pihello-test",
+    "recorded_at": "2026-10-24T02:19:53+00:00",
+    "recorder": "scripts/record_fixtures.py",
+    "survey": {
+      "startup_seconds": 1.6,
+      "sessions_invalidated_by_app_pwhash_change": true,
+      "sessions_invalidated_by_totp_change": true,
+      "ftl_restart_on_max_sessions_change": true,
+      "max_sessions_change_keeps_sessions": true,
+      "seats_exceeded_after_logins": 2,
+      "max_sessions_runtime_change_effective": true,
+      "ftl_restart_on_dns_hosts_change": false,
+      "sessions_invalidated_by_dns_hosts_change": false,
+      "queries_sent": {
+        "laptop": 170,
+        "phone": 130,
+        "tv": 70,
+        "desktop": 90,
+        "localhost": 6,
+        "host": 220
+      },
+      "update_check_got_remote_versions": true,
+      "dns_listeningMode": "ALL",
+      "sid_transport_status": {
+        "X-FTL-SID header": 200,
+        "sid header": 200,
+        "sid query parameter": 200,
+        "sid cookie (GET)": 401,
+        "Authorization: Bearer": 401
+      },
+      "tls": {
+        "ca_file": "/etc/pihole/tls_ca.crt",
+        "python_default_context": {
+          "ok": false,
+          "error": "CA cert does not include key usage extension"
+        },
+        "without_VERIFY_X509_STRICT": {
+          "ok": true,
+          "subject_cn": "pi.hole",
+          "issuer_cn": "pi.hole",
+          "subject_alt_names": [
+            "pi.hole"
+          ]
+        },
+        "hostname_pi.hole": {
+          "ok": true,
+          "subject_cn": "pi.hole",
+          "issuer_cn": "pi.hole",
+          "subject_alt_names": [
+            "pi.hole"
+          ]
+        },
+        "hostname_localhost": {
+          "ok": false,
+          "error": "Hostname mismatch, certificate is not valid for 'localhost'."
+        },
+        "https_info_login_status": 200
+      },
+      "ftl_restarts_during_recording": 0,
+      "wrong_password_burst_statuses": [
+        401,
+        401,
+        429,
+        429,
+        401,
+        401
+      ],
+      "login_after_wrong_burst_same_second": 200,
+      "login_after_wrong_burst_next_second": 200,
+      "image_digest": "sha256:1969825bde76cffd7b52dea9fedce6017c9f2e26676a658307bb6b4ca7328a10"
+    }
+  },
+  "responses": {
+    "DELETE /api/auth": {
+      "status": 204,
+      "body": null
+    },
+    "DELETE /api/auth#app-password": {
+      "status": 204,
+      "body": null
+    },
+    "DELETE /api/auth#no-password": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "no password set"
+        },
+        "took": 7.152557373046875e-06
+      }
+    },
+    "DELETE /api/auth#session-unknown": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "session unknown"
+        },
+        "took": 1.5497207641601562e-05
+      }
+    },
+    "DELETE /api/auth#unauthenticated": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "no SID provided"
+        },
+        "took": 1.0251998901367188e-05
+      }
+    },
+    "GET /api/auth": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": "cGloZWxsby1mYWtlLXNpZA=",
+          "csrf": "cGloZWxsby1mYWtlY3NyZg=",
+          "validity": 1800,
+          "message": "correct password"
+        },
+        "took": 1.7642974853515625e-05
+      }
+    },
+    "GET /api/auth#app-password": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": "cGloZWxsby1mYWtlLXNpZA=",
+          "csrf": "cGloZWxsby1mYWtlY3NyZg=",
+          "validity": 1800,
+          "message": "correct password"
+        },
+        "took": 1.4543533325195312e-05
+      }
+    },
+    "GET /api/auth#no-password": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "no password set"
+        },
+        "took": 9.059906005859375e-06
+      }
+    },
+    "GET /api/auth#totp-enabled-old-session": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": true,
+          "sid": null,
+          "validity": -1,
+          "message": "session unknown"
+        },
+        "took": 1.4543533325195312e-05
+      }
+    },
+    "GET /api/auth#totp-enabled-unauthenticated": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": true,
+          "sid": null,
+          "validity": -1,
+          "message": "no SID provided"
+        },
+        "took": 1.0728836059570312e-05
+      }
+    },
+    "GET /api/auth#unauthenticated": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "no SID provided"
+        },
+        "took": 7.62939453125e-06
+      }
+    },
+    "GET /api/auth/app": {
+      "status": 200,
+      "body": {
+        "app": {
+          "password": "cGloZWxsby1mYWtlLWFwcC1wYXNzd29yZC0wMDAwMDA=",
+          "hash": "$BALLOON-SHA256$v=1$s=1024,t=32$cGloZWxsby1mYWtlc2FsdA==$cGloZWxsby1mYWtlLWFwcC1wYXNzd29yZC1oYXNoISE="
+        },
+        "took": 0.0700840950012207
+      }
+    },
+    "GET /api/auth/sessions": {
+      "status": 200,
+      "body": {
+        "sessions": [
+          {
+            "id": 0,
+            "current_session": true,
+            "valid": true,
+            "tls": {
+              "login": false,
+              "mixed": false
+            },
+            "login_at": 1792808311,
+            "last_active": 1792808388,
+            "valid_until": 1792810188,
+            "remote_addr": "192.0.2.2",
+            "user_agent": "pihello-recorder",
+            "x_forwarded_for": null,
+            "app": false,
+            "cli": false
+          }
+        ],
+        "took": 1.1205673217773438e-05
+      }
+    },
+    "GET /api/auth/sessions#no-password": {
+      "status": 200,
+      "body": {
+        "sessions": [],
+        "took": 9.059906005859375e-06
+      }
+    },
+    "GET /api/auth/totp": {
+      "status": 200,
+      "body": {
+        "totp": {
+          "type": "totp",
+          "account": "pi.hole",
+          "issuer": "Pi-hole%20API",
+          "algorithm": "SHA1",
+          "digits": 6,
+          "period": 30,
+          "offset": 0,
+          "secret": "OBUWQZLMNRXS2ZTBNNSS25DPORYCCIJB",
+          "codes": [
+            406938,
+            160704,
+            260439,
+            798741,
+            243617
+          ]
+        },
+        "took": 1.6450881958007812e-05
+      }
+    },
+    "GET /api/clients": {
+      "status": 200,
+      "body": {
+        "clients": [],
+        "took": 4.9591064453125e-05
+      }
+    },
+    "GET /api/config/dns/upstreams": {
+      "status": 200,
+      "body": {
+        "config": {
+          "dns": {
+            "upstreams": [
+              "192.0.2.1"
+            ]
+          }
+        },
+        "took": 1.4066696166992188e-05
+      }
+    },
+    "GET /api/config/webserver/api/max_sessions": {
+      "status": 200,
+      "body": {
+        "config": {
+          "webserver": {
+            "api": {
+              "max_sessions": 16
+            }
+          }
+        },
+        "took": 1.71661376953125e-05
+      }
+    },
+    "GET /api/dhcp/leases": {
+      "status": 200,
+      "body": {
+        "leases": [],
+        "took": 2.3126602172851562e-05
+      }
+    },
+    "GET /api/dns/blocking": {
+      "status": 200,
+      "body": {
+        "blocking": "enabled",
+        "timer": null,
+        "took": 1.3828277587890625e-05
+      }
+    },
+    "GET /api/dns/blocking#disabled": {
+      "status": 200,
+      "body": {
+        "blocking": "disabled",
+        "timer": 300,
+        "took": 1.33514404296875e-05
+      }
+    },
+    "GET /api/dns/blocking#no-password": {
+      "status": 200,
+      "body": {
+        "blocking": "enabled",
+        "timer": null,
+        "took": 1.239776611328125e-05
+      }
+    },
+    "GET /api/does/not/exist": {
+      "status": 404,
+      "body": {
+        "error": {
+          "key": "not_found",
+          "message": "Not found",
+          "hint": "/api/does/not/exist"
+        },
+        "took": 3.7670135498046875e-05
+      }
+    },
+    "GET /api/does/not/exist#unauthenticated": {
+      "status": 404,
+      "body": {
+        "error": {
+          "key": "not_found",
+          "message": "Not found",
+          "hint": "/api/does/not/exist"
+        },
+        "took": 2.7418136596679688e-05
+      }
+    },
+    "GET /api/domains": {
+      "status": 200,
+      "body": {
+        "domains": [
+          {
+            "domain": "ads.example.com",
+            "unicode": "ads.example.com",
+            "type": "deny",
+            "kind": "exact",
+            "comment": "pihello survey",
+            "groups": [
+              0
+            ],
+            "enabled": true,
+            "id": 1,
+            "date_added": 1792808320,
+            "date_modified": 1792808320
+          },
+          {
+            "domain": "tracker.example.net",
+            "unicode": "tracker.example.net",
+            "type": "deny",
+            "kind": "exact",
+            "comment": "pihello survey",
+            "groups": [
+              0
+            ],
+            "enabled": true,
+            "id": 2,
+            "date_added": 1792808320,
+            "date_modified": 1792808320
+          },
+          {
+            "domain": "telemetry.example.org",
+            "unicode": "telemetry.example.org",
+            "type": "deny",
+            "kind": "exact",
+            "comment": "pihello survey",
+            "groups": [
+              0
+            ],
+            "enabled": true,
+            "id": 3,
+            "date_added": 1792808320,
+            "date_modified": 1792808320
+          },
+          {
+            "domain": "(^|\\.)metrics\\.example\\.(com|net)$",
+            "unicode": "(^|\\.)metrics\\.example\\.(com|net)$",
+            "type": "deny",
+            "kind": "regex",
+            "comment": "pihello survey regex",
+            "groups": [
+              0
+            ],
+            "enabled": true,
+            "id": 4,
+            "date_added": 1792808320,
+            "date_modified": 1792808320
+          },
+          {
+            "domain": "www.googleadservices.com",
+            "unicode": "www.googleadservices.com",
+            "type": "allow",
+            "kind": "exact",
+            "comment": "allow shopping ads",
+            "groups": [
+              0
+            ],
+            "enabled": true,
+            "id": 5,
+            "date_added": 1792808320,
+            "date_modified": 1792808320
+          }
+        ],
+        "took": 7.82012939453125e-05
+      }
+    },
+    "GET /api/endpoints": {
+      "status": 200,
+      "body": {
+        "endpoints": {
+          "get": [
+            {
+              "uri": "/api/auth/sessions",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/auth/app",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/auth/totp",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/auth",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/dns/blocking",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/clients/_suggestions",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/clients",
+              "parameters": "/{client}"
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": "/{type}/{kind}/{domain}"
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": "/{type}/{kind}"
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": "/{type}"
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/search",
+              "parameters": "/{domain}"
+            },
+            {
+              "uri": "/api/groups",
+              "parameters": "/{name}"
+            },
+            {
+              "uri": "/api/lists",
+              "parameters": "/{list}"
+            },
+            {
+              "uri": "/api/info/client",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/login",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/system",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/database",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/sensors",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/host",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/ftl",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/version",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/messages/count",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/messages",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/info/metrics",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/logs/dnsmasq",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/logs/ftl",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/logs/webserver",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/history/clients",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/history/database/clients",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/history/database",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/history",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/queries/suggestions",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/queries",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/summary",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/query_types",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/upstreams",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/top_domains",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/top_clients",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/recent_blocked",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/database/top_domains",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/database/top_clients",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/database/summary",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/database/query_types",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/stats/database/upstreams",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/config/_properties",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/config",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/config",
+              "parameters": "/{element}"
+            },
+            {
+              "uri": "/api/network/gateway",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/network/routes",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/network/interfaces",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/network/devices",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/endpoints",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/teleporter",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/dhcp/leases",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/padd",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/docs",
+              "parameters": ""
+            }
+          ],
+          "post": [
+            {
+              "uri": "/api/auth",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/dns/blocking",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/clients",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/clients:batchDelete",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": "/{type}/{kind}"
+            },
+            {
+              "uri": "/api/domains:batchDelete",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/groups",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/groups:batchDelete",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/lists",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/lists:batchDelete",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/teleporter",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/action/gravity",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/action/restartdns",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/action/flush/logs",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/action/flush/arp",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/action/flush/network",
+              "parameters": ""
+            }
+          ],
+          "put": [
+            {
+              "uri": "/api/clients",
+              "parameters": "/{client}"
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": "/{type}/{kind}/{domain}"
+            },
+            {
+              "uri": "/api/groups",
+              "parameters": "/{name}"
+            },
+            {
+              "uri": "/api/lists",
+              "parameters": "/{list}"
+            },
+            {
+              "uri": "/api/config",
+              "parameters": "/{element}/{value}"
+            }
+          ],
+          "patch": [
+            {
+              "uri": "/api/config",
+              "parameters": ""
+            }
+          ],
+          "delete": [
+            {
+              "uri": "/api/auth/session",
+              "parameters": "/{id}"
+            },
+            {
+              "uri": "/api/auth",
+              "parameters": ""
+            },
+            {
+              "uri": "/api/clients",
+              "parameters": "/{client}"
+            },
+            {
+              "uri": "/api/domains",
+              "parameters": "/{type}/{kind}/{domain}"
+            },
+            {
+              "uri": "/api/groups",
+              "parameters": "/{name}"
+            },
+            {
+              "uri": "/api/lists",
+              "parameters": "/{list}"
+            },
+            {
+              "uri": "/api/info/messages",
+              "parameters": "/{message_id}"
+            },
+            {
+              "uri": "/api/config",
+              "parameters": "/{element}/{value}"
+            },
+            {
+              "uri": "/api/network/devices",
+              "parameters": "/{device_id}"
+            },
+            {
+              "uri": "/api/dhcp/leases",
+              "parameters": "/{ip}"
+            }
+          ]
+        },
+        "took": 3.266334533691406e-05
+      }
+    },
+    "GET /api/groups": {
+      "status": 200,
+      "body": {
+        "groups": [
+          {
+            "name": "Default",
+            "comment": "The default group",
+            "enabled": true,
+            "id": 0,
+            "date_added": 1792808270,
+            "date_modified": 1792808270
+          },
+          {
+            "name": "iot",
+            "comment": "TVs and smart plugs",
+            "enabled": true,
+            "id": 1,
+            "date_added": 1792808320,
+            "date_modified": 1792808320
+          }
+        ],
+        "took": 4.1961669921875e-05
+      }
+    },
+    "GET /api/history": {
+      "status": 200,
+      "body": {
+        "history": [
+          {
+            "timestamp": 1792722300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792722900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792723500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792724100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792724700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792725300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792725900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792726500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792727100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792727700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792728300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792728900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792729500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792730100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792730700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792731300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792731900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792732500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792733100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792733700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792734300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792734900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792735500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792736100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792736700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792737300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792737900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792738500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792739100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792739700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792740300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792740900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792741500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792742100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792742700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792743300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792743900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792744500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792745100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792745700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792746300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792746900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792747500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792748100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792748700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792749300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792749900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792750500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792751100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792751700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792752300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792752900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792753500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792754100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792754700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792755300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792755900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792756500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792757100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792757700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792758300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792758900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792759500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792760100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792760700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792761300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792761900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792762500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792763100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792763700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792764300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792764900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792765500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792766100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792766700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792767300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792767900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792768500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792769100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792769700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792770300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792770900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792771500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792772100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792772700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792773300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792773900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792774500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792775100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792775700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792776300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792776900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792777500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792778100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792778700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792779300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792779900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792780500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792781100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792781700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792782300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792782900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792783500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792784100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792784700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792785300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792785900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792786500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792787100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792787700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792788300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792788900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792789500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792790100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792790700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792791300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792791900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792792500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792793100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792793700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792794300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792794900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792795500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792796100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792796700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792797300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792797900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792798500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792799100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792799700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792800300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792800900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792801500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792802100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792802700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792803300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792803900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792804500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792805100,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792805700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792806300,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792806900,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792807500,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          },
+          {
+            "timestamp": 1792808100,
+            "total": 691,
+            "cached": 429,
+            "blocked": 156,
+            "forwarded": 105
+          },
+          {
+            "timestamp": 1792808700,
+            "total": 0,
+            "cached": 0,
+            "blocked": 0,
+            "forwarded": 0
+          }
+        ],
+        "took": 7.271766662597656e-05
+      }
+    },
+    "GET /api/history/clients": {
+      "status": 200,
+      "body": {
+        "history": [
+          {
+            "timestamp": 1792722300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792722900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792723500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792724100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792724700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792725300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792725900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792726500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792727100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792727700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792728300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792728900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792729500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792730100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792730700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792731300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792731900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792732500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792733100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792733700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792734300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792734900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792735500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792736100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792736700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792737300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792737900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792738500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792739100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792739700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792740300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792740900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792741500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792742100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792742700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792743300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792743900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792744500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792745100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792745700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792746300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792746900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792747500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792748100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792748700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792749300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792749900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792750500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792751100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792751700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792752300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792752900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792753500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792754100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792754700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792755300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792755900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792756500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792757100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792757700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792758300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792758900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792759500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792760100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792760700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792761300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792761900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792762500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792763100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792763700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792764300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792764900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792765500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792766100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792766700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792767300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792767900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792768500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792769100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792769700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792770300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792770900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792771500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792772100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792772700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792773300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792773900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792774500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792775100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792775700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792776300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792776900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792777500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792778100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792778700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792779300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792779900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792780500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792781100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792781700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792782300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792782900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792783500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792784100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792784700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792785300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792785900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792786500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792787100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792787700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792788300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792788900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792789500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792790100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792790700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792791300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792791900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792792500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792793100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792793700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792794300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792794900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792795500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792796100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792796700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792797300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792797900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792798500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792799100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792799700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792800300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792800900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792801500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792802100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792802700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792803300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792803900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792804500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792805100,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792805700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792806300,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792806900,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792807500,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          },
+          {
+            "timestamp": 1792808100,
+            "data": {
+              "192.0.2.2": 220,
+              "192.0.2.21": 170,
+              "192.0.2.22": 130,
+              "2001:db8:53::24": 90,
+              "192.0.2.23": 70,
+              "others": 11
+            }
+          },
+          {
+            "timestamp": 1792808700,
+            "data": {
+              "192.0.2.2": 0,
+              "192.0.2.21": 0,
+              "192.0.2.22": 0,
+              "2001:db8:53::24": 0,
+              "192.0.2.23": 0,
+              "others": 0
+            }
+          }
+        ],
+        "clients": {
+          "192.0.2.2": {
+            "name": "pi.hole",
+            "total": 220
+          },
+          "192.0.2.21": {
+            "name": "laptop.lan",
+            "total": 170
+          },
+          "192.0.2.22": {
+            "name": "phone.lan",
+            "total": 130
+          },
+          "2001:db8:53::24": {
+            "name": null,
+            "total": 90
+          },
+          "192.0.2.23": {
+            "name": "tv.lan",
+            "total": 70
+          }
+        },
+        "took": 0.00012445449829101562
+      }
+    },
+    "GET /api/info/client": {
+      "status": 200,
+      "body": {
+        "remote_addr": "192.0.2.2",
+        "http_version": "1.1",
+        "method": "GET",
+        "headers": [
+          {
+            "name": "Accept-Encoding",
+            "value": "identity"
+          },
+          {
+            "name": "Host",
+            "value": "pi.hole"
+          },
+          {
+            "name": "User-Agent",
+            "value": "pihello-recorder"
+          },
+          {
+            "name": "Accept",
+            "value": "application/json"
+          },
+          {
+            "name": "X-Ftl-Sid",
+            "value": "cGloZWxsby1mYWtlLXNpZA="
+          },
+          {
+            "name": "Connection",
+            "value": "close"
+          }
+        ],
+        "took": 1.1205673217773438e-05
+      }
+    },
+    "GET /api/info/database": {
+      "status": 200,
+      "body": {
+        "size": 90112,
+        "type": "Regular file",
+        "mode": "rw-r-----",
+        "atime": 1792808314,
+        "mtime": 1792808314,
+        "ctime": 1792808314,
+        "owner": {
+          "user": {
+            "uid": 1000,
+            "name": "pihole",
+            "info": ""
+          },
+          "group": {
+            "gid": 1000,
+            "name": "pihole"
+          }
+        },
+        "queries": 691,
+        "earliest_timestamp": 1792722000,
+        "queries_disk": 691,
+        "earliest_timestamp_disk": 0,
+        "sqlite_version": "3.51.3",
+        "took": 8.916854858398438e-05
+      }
+    },
+    "GET /api/info/ftl": {
+      "status": 200,
+      "body": {
+        "ftl": {
+          "database": {
+            "gravity": 71493,
+            "groups": 2,
+            "lists": 1,
+            "clients": 0,
+            "domains": {
+              "allowed": {
+                "total": 1,
+                "enabled": 1
+              },
+              "denied": {
+                "total": 3,
+                "enabled": 3
+              }
+            },
+            "regex": {
+              "allowed": {
+                "total": 0,
+                "enabled": 0
+              },
+              "denied": {
+                "total": 1,
+                "enabled": 1
+              }
+            }
+          },
+          "privacy_level": 0,
+          "query_frequency": 0,
+          "clients": {
+            "total": 6,
+            "active": 6
+          },
+          "pid": 184,
+          "uptime": 73432.261728,
+          "%mem": 0.03396949917078018,
+          "%cpu": 0.008333333767950535,
+          "allow_destructive": true,
+          "dnsmasq": {
+            "dns_cache_inserted": 457,
+            "dns_cache_live_freed": 0,
+            "dns_queries_forwarded": 143,
+            "dns_auth_answered": 0,
+            "dns_local_answered": 550,
+            "dns_stale_answered": 29,
+            "dns_unanswered": 0,
+            "dnssec_max_crypto_use": 0,
+            "dnssec_max_sig_fail": 0,
+            "dnssec_max_work": 0,
+            "bootp": 0,
+            "pxe": 0,
+            "dhcp_ack": 0,
+            "dhcp_decline": 0,
+            "dhcp_discover": 0,
+            "dhcp_inform": 0,
+            "dhcp_nak": 0,
+            "dhcp_offer": 0,
+            "dhcp_release": 0,
+            "dhcp_request": 0,
+            "noanswer": 0,
+            "leases_allocated_4": 0,
+            "leases_pruned_4": 0,
+            "leases_allocated_6": 0,
+            "leases_pruned_6": 0,
+            "tcp_connections": 0,
+            "dhcp_leasequery": 0,
+            "dhcp_lease_unassigned": 0,
+            "dhcp_lease_actve": 0,
+            "dhcp_lease_unknown": 0
+          }
+        },
+        "took": 7.82012939453125e-05
+      }
+    },
+    "GET /api/info/host": {
+      "status": 200,
+      "body": {
+        "host": {
+          "uname": {
+            "domainname": "(none)",
+            "machine": "aarch64",
+            "nodename": "pihole",
+            "release": "6.12.47+rpt-rpi-v8",
+            "sysname": "Linux",
+            "version": "#1 SMP PREEMPT Debian 1:6.12.47-1+rpt1 (2025-09-16)"
+          },
+          "model": "Raspberry Pi 4 Model B Rev 1.5",
+          "dmi": {
+            "bios": {
+              "vendor": "Raspberry Pi Ltd"
+            },
+            "board": {
+              "name": "Raspberry Pi 4 Model B",
+              "vendor": "Raspberry Pi Ltd",
+              "version": "1.5"
+            },
+            "product": {
+              "name": "Raspberry Pi 4 Model B",
+              "family": "Raspberry Pi",
+              "version": "Rev 1.5"
+            },
+            "sys": {
+              "vendor": "Raspberry Pi Ltd"
+            }
+          }
+        },
+        "took": 0.0001659393310546875
+      }
+    },
+    "GET /api/info/login": {
+      "status": 200,
+      "body": {
+        "dns": true,
+        "https_port": 443,
+        "took": 7.152557373046875e-06
+      }
+    },
+    "GET /api/info/login#authenticated": {
+      "status": 200,
+      "body": {
+        "dns": true,
+        "https_port": 443,
+        "took": 9.29832458496094e-06
+      }
+    },
+    "GET /api/info/login#no-password": {
+      "status": 200,
+      "body": {
+        "dns": true,
+        "https_port": 443,
+        "took": 1.239776611328125e-05
+      }
+    },
+    "GET /api/info/messages": {
+      "status": 200,
+      "body": {
+        "messages": [],
+        "took": 0.00029754638671875
+      }
+    },
+    "GET /api/info/messages/count": {
+      "status": 200,
+      "body": {
+        "count": 0,
+        "took": 0.00035119056701660156
+      }
+    },
+    "GET /api/info/metrics": {
+      "status": 200,
+      "body": {
+        "metrics": {
+          "dns": {
+            "cache": {
+              "size": 10000,
+              "inserted": 457,
+              "evicted": 0,
+              "expired": 167,
+              "immortal": 37,
+              "content": [
+                {
+                  "type": 0,
+                  "name": "OTHER",
+                  "count": {
+                    "valid": 12,
+                    "stale": 1
+                  }
+                },
+                {
+                  "type": 1,
+                  "name": "A",
+                  "count": {
+                    "valid": 62,
+                    "stale": 81
+                  }
+                },
+                {
+                  "type": 28,
+                  "name": "AAAA",
+                  "count": {
+                    "valid": 67,
+                    "stale": 53
+                  }
+                },
+                {
+                  "type": 5,
+                  "name": "CNAME",
+                  "count": {
+                    "valid": 9,
+                    "stale": 4
+                  }
+                },
+                {
+                  "type": 6,
+                  "name": "SOA",
+                  "count": {
+                    "valid": 10,
+                    "stale": 13
+                  }
+                },
+                {
+                  "type": 65,
+                  "name": "HTTPS",
+                  "count": {
+                    "valid": 15,
+                    "stale": 15
+                  }
+                },
+                {
+                  "type": 257,
+                  "name": "CAA",
+                  "count": {
+                    "valid": 12,
+                    "stale": 0
+                  }
+                },
+                {
+                  "type": 16,
+                  "name": "TXT",
+                  "count": {
+                    "valid": 17,
+                    "stale": 0
+                  }
+                },
+                {
+                  "type": 15,
+                  "name": "MX",
+                  "count": {
+                    "valid": 5,
+                    "stale": 0
+                  }
+                }
+              ]
+            },
+            "replies": {
+              "local": 550,
+              "forwarded": 143,
+              "optimized": 29,
+              "unanswered": 0,
+              "auth": 0,
+              "sum": 722
+            }
+          },
+          "dhcp": {
+            "ack": 0,
+            "decline": 0,
+            "discover": 0,
+            "inform": 0,
+            "nak": 0,
+            "offer": 0,
+            "release": 0,
+            "request": 0,
+            "noanswer": 0,
+            "bootp": 0,
+            "pxe": 0,
+            "leases": {
+              "allocated_4": 0,
+              "pruned_4": 0,
+              "allocated_6": 0,
+              "pruned_6": 0
+            }
+          }
+        },
+        "took": 3.552436828613281e-05
+      }
+    },
+    "GET /api/info/sensors": {
+      "status": 200,
+      "body": {
+        "sensors": {
+          "list": [],
+          "cpu_temp": null,
+          "hot_limit": 60,
+          "unit": "C"
+        },
+        "took": 6.651878356933594e-05
+      }
+    },
+    "GET /api/info/system": {
+      "status": 200,
+      "body": {
+        "system": {
+          "uptime": 241866,
+          "memory": {
+            "ram": {
+              "total": 32417316,
+              "free": 4644632,
+              "used": 13481628,
+              "available": 18095992,
+              "%used": 41.58773662816502
+            },
+            "swap": {
+              "total": 8388604,
+              "free": 2689132,
+              "used": 5699472,
+              "%used": 67.9430331912199
+            }
+          },
+          "procs": 2318,
+          "cpu": {
+            "nprocs": 12,
+            "%cpu": 1.6916667222976685,
+            "load": {
+              "raw": [
+                0.46533203125,
+                0.353515625,
+                0.35107421875
+              ],
+              "percent": [
+                3.8777668476104736,
+                2.9459636211395264,
+                2.9256184101104736
+              ]
+            }
+          },
+          "ftl": {
+            "%mem": 0.03396949917078018,
+            "%cpu": 0.008333333767950535
+          }
+        },
+        "took": 0.00011849403381347656
+      }
+    },
+    "GET /api/info/version": {
+      "status": 200,
+      "body": {
+        "version": {
+          "core": {
+            "local": {
+              "version": "v6.4.2",
+              "branch": "master",
+              "hash": "3413768c"
+            },
+            "remote": {
+              "version": "v6.5",
+              "hash": "f503a65d"
+            }
+          },
+          "web": {
+            "local": {
+              "version": "v6.5.1",
+              "branch": "master",
+              "hash": "cc7c2f34"
+            },
+            "remote": {
+              "version": "v6.6.1",
+              "hash": "fb699c4e"
+            }
+          },
+          "ftl": {
+            "local": {
+              "hash": "82c58cc4",
+              "branch": "master",
+              "version": "v6.6.2",
+              "date": "2026-05-11 21:37:56 +0200"
+            },
+            "remote": {
+              "version": "v6.8",
+              "hash": "29c8b13f"
+            }
+          },
+          "docker": {
+            "local": "2026.06.0",
+            "remote": "2026.10.0"
+          }
+        },
+        "took": 3.743171691894531e-05
+      }
+    },
+    "GET /api/info/version#no-password": {
+      "status": 500,
+      "body": {
+        "error": {
+          "key": "internal_error",
+          "message": "Failed to read /etc/pihole/versions",
+          "hint": null
+        },
+        "took": 4.220008850097656e-05
+      }
+    },
+    "GET /api/lists": {
+      "status": 200,
+      "body": {
+        "lists": [
+          {
+            "address": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+            "comment": "Migrated from /etc/pihole/adlists.list",
+            "groups": [
+              0
+            ],
+            "enabled": true,
+            "id": 1,
+            "date_added": 1792808270,
+            "date_modified": 1792808270,
+            "type": "block",
+            "date_updated": 1792808271,
+            "number": 71493,
+            "invalid_domains": 1,
+            "abp_entries": 0,
+            "status": 1
+          }
+        ],
+        "took": 6.628036499023438e-05
+      }
+    },
+    "GET /api/network/devices": {
+      "status": 200,
+      "body": {
+        "devices": [
+          {
+            "id": 2,
+            "hwaddr": "ip-127.0.0.1",
+            "interface": "lo",
+            "firstSeen": 1792808320,
+            "lastQuery": 1792808321,
+            "numQueries": 11,
+            "macVendor": "",
+            "ips": [
+              {
+                "ip": "127.0.0.1",
+                "name": "localhost",
+                "lastSeen": 1792808380,
+                "nameUpdated": 1792808380
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "hwaddr": "ip-192.0.2.2",
+            "interface": "eth0",
+            "firstSeen": 1792808320,
+            "lastQuery": 1792808320,
+            "numQueries": 220,
+            "macVendor": "",
+            "ips": [
+              {
+                "ip": "192.0.2.2",
+                "name": "pi.hole",
+                "lastSeen": 1792808380,
+                "nameUpdated": 1792808380
+              }
+            ]
+          }
+        ],
+        "took": 0.0003094673156738281
+      }
+    },
+    "GET /api/network/gateway": {
+      "status": 200,
+      "body": {
+        "gateway": [
+          {
+            "family": "inet",
+            "interface": "eth0",
+            "address": "192.0.2.1",
+            "local": [
+              "192.0.2.2"
+            ]
+          },
+          {
+            "family": "inet6",
+            "interface": "eth0",
+            "address": "2001:db8:53::1",
+            "local": [
+              "2001:db8:53::2",
+              "fe80::ff:fe00:2"
+            ]
+          }
+        ],
+        "took": 0.0003120899200439453
+      }
+    },
+    "GET /api/network/interfaces": {
+      "status": 200,
+      "body": {
+        "interfaces": [
+          {
+            "name": "lo",
+            "speed": null,
+            "type": "loopback",
+            "flags": [
+              "up",
+              "loopback",
+              "running",
+              "lower_up"
+            ],
+            "state": "unknown",
+            "carrier": true,
+            "proto_down": false,
+            "address": "00:00:00:00:00:00",
+            "broadcast": "00:00:00:00:00:00",
+            "stats": {
+              "rx_bytes": {
+                "value": 354.1953125,
+                "unit": "k"
+              },
+              "tx_bytes": {
+                "value": 354.1953125,
+                "unit": "k"
+              },
+              "bits": 64
+            },
+            "addresses": [
+              {
+                "family": "inet",
+                "scope": "host",
+                "flags": [
+                  "permanent"
+                ],
+                "prefixlen": 8,
+                "address": "127.0.0.1",
+                "address_type": "loopback",
+                "local": "127.0.0.1",
+                "local_type": "loopback",
+                "label": "lo",
+                "prefered": 4294967295,
+                "valid": 4294967295,
+                "cstamp": 1792808270.62,
+                "tstamp": 1792808270.62
+              },
+              {
+                "family": "inet6",
+                "scope": "host",
+                "flags": [
+                  "permanent"
+                ],
+                "prefixlen": 128,
+                "address": "::1",
+                "address_type": "loopback",
+                "prefered": 4294967295,
+                "valid": 4294967295,
+                "cstamp": 1792808270.62,
+                "tstamp": 1792808270.62
+              }
+            ]
+          },
+          {
+            "name": "eth0",
+            "speed": 10000,
+            "type": "ether",
+            "flags": [
+              "up",
+              "broadcast",
+              "running",
+              "multicast",
+              "lower_up"
+            ],
+            "state": "up",
+            "carrier": true,
+            "proto_down": false,
+            "address": "02:00:00:00:00:02",
+            "broadcast": "ff:ff:ff:ff:ff:ff",
+            "stats": {
+              "rx_bytes": {
+                "value": 1.3064603805541992,
+                "unit": "M"
+              },
+              "tx_bytes": {
+                "value": 131.140625,
+                "unit": "k"
+              },
+              "bits": 64
+            },
+            "addresses": [
+              {
+                "family": "inet",
+                "scope": "universe",
+                "flags": [
+                  "permanent"
+                ],
+                "prefixlen": 24,
+                "address": "192.0.2.2",
+                "address_type": "private",
+                "local": "192.0.2.2",
+                "local_type": "private",
+                "broadcast": "192.0.2.255",
+                "broadcast_type": "private",
+                "label": "eth0",
+                "prefered": 4294967295,
+                "valid": 4294967295,
+                "cstamp": 1792808270.63,
+                "tstamp": 1792808270.63
+              },
+              {
+                "family": "inet6",
+                "scope": "universe",
+                "flags": [
+                  "permanent"
+                ],
+                "prefixlen": 64,
+                "address": "2001:db8:53::2",
+                "address_type": "global (GUA)",
+                "prefered": 4294967295,
+                "valid": 4294967295,
+                "cstamp": 1792808270.63,
+                "tstamp": 1792808270.63
+              },
+              {
+                "family": "inet6",
+                "scope": "link",
+                "flags": [
+                  "permanent"
+                ],
+                "prefixlen": 64,
+                "address": "fe80::ff:fe00:2",
+                "address_type": "link-local (LL)",
+                "prefered": 4294967295,
+                "valid": 4294967295,
+                "cstamp": 1792808270.63,
+                "tstamp": 1792808270.63
+              }
+            ]
+          }
+        ],
+        "took": 0.00016498565673828125
+      }
+    },
+    "GET /api/network/routes": {
+      "status": 200,
+      "body": {
+        "routes": [
+          {
+            "table": 254,
+            "family": "inet",
+            "protocol": "static",
+            "scope": "universe",
+            "type": "unicast",
+            "flags": [],
+            "priority": 100,
+            "gateway": "192.0.2.1",
+            "oif": "eth0",
+            "dst": "default"
+          },
+          {
+            "table": 254,
+            "family": "inet",
+            "protocol": "kernel",
+            "scope": "link",
+            "type": "unicast",
+            "flags": [],
+            "dst": "192.0.2.0",
+            "prefsrc": "192.0.2.2",
+            "oif": "eth0"
+          },
+          {
+            "table": 255,
+            "family": "inet",
+            "protocol": "kernel",
+            "scope": "host",
+            "type": "local",
+            "flags": [],
+            "dst": "127.0.0.0",
+            "prefsrc": "127.0.0.1",
+            "oif": "lo"
+          },
+          {
+            "table": 255,
+            "family": "inet",
+            "protocol": "kernel",
+            "scope": "host",
+            "type": "local",
+            "flags": [],
+            "dst": "127.0.0.1",
+            "prefsrc": "127.0.0.1",
+            "oif": "lo"
+          },
+          {
+            "table": 255,
+            "family": "inet",
+            "protocol": "kernel",
+            "scope": "link",
+            "type": "broadcast",
+            "flags": [],
+            "dst": "127.255.255.255",
+            "prefsrc": "127.0.0.1",
+            "oif": "lo"
+          },
+          {
+            "table": 255,
+            "family": "inet",
+            "protocol": "kernel",
+            "scope": "host",
+            "type": "local",
+            "flags": [],
+            "dst": "192.0.2.2",
+            "prefsrc": "192.0.2.2",
+            "oif": "eth0"
+          },
+          {
+            "table": 255,
+            "family": "inet",
+            "protocol": "kernel",
+            "scope": "link",
+            "type": "broadcast",
+            "flags": [],
+            "dst": "192.0.2.255",
+            "prefsrc": "192.0.2.2",
+            "oif": "eth0"
+          },
+          {
+            "table": 254,
+            "family": "inet6",
+            "protocol": "kernel",
+            "scope": "universe",
+            "type": "unicast",
+            "flags": [],
+            "dst": "2001:db8:53::",
+            "priority": 256,
+            "oif": "eth0",
+            "pref": 0
+          },
+          {
+            "table": 254,
+            "family": "inet6",
+            "protocol": "kernel",
+            "scope": "universe",
+            "type": "unicast",
+            "flags": [],
+            "dst": "fe80::ff:fe00:a0",
+            "priority": 256,
+            "oif": "eth0",
+            "pref": 0
+          },
+          {
+            "table": 254,
+            "family": "inet6",
+            "protocol": "static",
+            "scope": "universe",
+            "type": "unicast",
+            "flags": [],
+            "priority": 100,
+            "gateway": "2001:db8:53::1",
+            "oif": "eth0",
+            "pref": 0,
+            "dst": "default"
+          },
+          {
+            "table": 255,
+            "family": "inet6",
+            "protocol": "kernel",
+            "scope": "universe",
+            "type": "local",
+            "flags": [],
+            "dst": "::1",
+            "priority": 0,
+            "oif": "lo",
+            "pref": 0
+          },
+          {
+            "table": 255,
+            "family": "inet6",
+            "protocol": "kernel",
+            "scope": "universe",
+            "type": "local",
+            "flags": [],
+            "dst": "2001:db8:53::2",
+            "priority": 0,
+            "oif": "eth0",
+            "pref": 0
+          },
+          {
+            "table": 255,
+            "family": "inet6",
+            "protocol": "kernel",
+            "scope": "universe",
+            "type": "local",
+            "flags": [],
+            "dst": "fe80::ff:fe00:2",
+            "priority": 0,
+            "oif": "eth0",
+            "pref": 0
+          },
+          {
+            "table": 255,
+            "family": "inet6",
+            "protocol": "kernel",
+            "scope": "universe",
+            "type": "multicast",
+            "flags": [],
+            "dst": "ff00::",
+            "priority": 256,
+            "oif": "eth0",
+            "pref": 0
+          }
+        ],
+        "took": 0.00014257431030273438
+      }
+    },
+    "GET /api/padd": {
+      "status": 200,
+      "body": {
+        "recent_blocked": "googleads.g.doubleclick.net",
+        "active_clients": 6,
+        "gravity_size": 71493,
+        "top_domain": "www.google.com",
+        "top_blocked": "www.googletagservices.com",
+        "top_client": "pi.hole",
+        "blocking": "enabled",
+        "queries": {
+          "total": 691,
+          "blocked": 156,
+          "percent_blocked": 22.575977325439453,
+          "query_frequency": 0
+        },
+        "cache": {
+          "size": 10000,
+          "inserted": 457,
+          "evicted": 0
+        },
+        "system": {
+          "uptime": 241866,
+          "memory": {
+            "ram": {
+              "total": 32417316,
+              "free": 4644632,
+              "used": 13481628,
+              "available": 18095992,
+              "%used": 41.58773662816502
+            },
+            "swap": {
+              "total": 8388604,
+              "free": 2689132,
+              "used": 5699472,
+              "%used": 67.9430331912199
+            }
+          },
+          "procs": 2322,
+          "cpu": {
+            "nprocs": 12,
+            "%cpu": 1.6916667222976685,
+            "load": {
+              "raw": [
+                0.46533203125,
+                0.353515625,
+                0.35107421875
+              ],
+              "percent": [
+                3.8777668476104736,
+                2.9459636211395264,
+                2.9256184101104736
+              ]
+            }
+          },
+          "ftl": {
+            "%mem": 0.034068211913108826,
+            "%cpu": 0.008333333767950535
+          }
+        },
+        "node_name": "pihole",
+        "host_model": "Raspberry Pi 4 Model B Rev 1.5",
+        "iface": {
+          "v4": {
+            "addr": "192.0.2.2",
+            "rx_bytes": {
+              "value": 1.3064603805541992,
+              "unit": "M"
+            },
+            "tx_bytes": {
+              "value": 131.140625,
+              "unit": "k"
+            },
+            "num_addrs": 1,
+            "name": "eth0",
+            "gw_addr": "192.0.2.1"
+          },
+          "v6": {
+            "addr": "2001:db8:53::2",
+            "num_addrs": 2,
+            "name": "eth0",
+            "gw_addr": "2001:db8:53::1"
+          }
+        },
+        "version": {
+          "core": {
+            "local": {
+              "version": "v6.4.2",
+              "branch": "master",
+              "hash": "3413768c"
+            },
+            "remote": {
+              "version": "v6.5",
+              "hash": "f503a65d"
+            }
+          },
+          "web": {
+            "local": {
+              "version": "v6.5.1",
+              "branch": "master",
+              "hash": "cc7c2f34"
+            },
+            "remote": {
+              "version": "v6.6.1",
+              "hash": "fb699c4e"
+            }
+          },
+          "ftl": {
+            "local": {
+              "hash": "82c58cc4",
+              "branch": "master",
+              "version": "v6.6.2",
+              "date": "2026-05-11 21:37:56 +0200"
+            },
+            "remote": {
+              "version": "v6.8",
+              "hash": "29c8b13f"
+            }
+          },
+          "docker": {
+            "local": "2026.06.0",
+            "remote": "2026.10.0"
+          }
+        },
+        "config": {
+          "dhcp_active": false,
+          "dhcp_start": "",
+          "dhcp_end": "",
+          "dhcp_ipv6": false,
+          "dns_domain": "lan",
+          "dns_port": 53,
+          "dns_num_upstreams": 1,
+          "dns_dnssec": false,
+          "dns_revServer_active": false,
+          "privacy_level": 0
+        },
+        "%mem": 0.03414224833250046,
+        "%cpu": 0.008333333767950535,
+        "pid": 184,
+        "sensors": {
+          "cpu_temp": null,
+          "hot_limit": 60,
+          "unit": "C"
+        },
+        "took": 0.0005466938018798828
+      }
+    },
+    "GET /api/stats/database/summary?from=1&until=4102444800": {
+      "status": 200,
+      "body": {
+        "sum_queries": 691,
+        "sum_blocked": 156,
+        "percent_blocked": 22.575977325439453,
+        "total_clients": 7,
+        "took": 0.0005846023559570312
+      }
+    },
+    "GET /api/stats/query_types": {
+      "status": 200,
+      "body": {
+        "types": {
+          "A": 323,
+          "AAAA": 276,
+          "ANY": 0,
+          "SRV": 0,
+          "SOA": 0,
+          "PTR": 6,
+          "TXT": 1,
+          "NAPTR": 0,
+          "MX": 1,
+          "DS": 0,
+          "RRSIG": 0,
+          "DNSKEY": 0,
+          "NS": 0,
+          "SVCB": 0,
+          "HTTPS": 83,
+          "OTHER": 1
+        },
+        "took": 1.1205673217773438e-05
+      }
+    },
+    "GET /api/stats/recent_blocked?count=10": {
+      "status": 200,
+      "body": {
+        "blocked": [
+          "googleads.g.doubleclick.net",
+          "googleads.g.doubleclick.net",
+          "eu.metrics.example.net",
+          "tracker.example.net",
+          "pixel.facebook.com",
+          "pixel.facebook.com",
+          "ads.yahoo.com",
+          "ads.yahoo.com",
+          "googleads.g.doubleclick.net",
+          "googleads.g.doubleclick.net"
+        ],
+        "took": 1.1205673217773438e-05
+      }
+    },
+    "GET /api/stats/summary": {
+      "status": 200,
+      "body": {
+        "queries": {
+          "total": 691,
+          "blocked": 156,
+          "percent_blocked": 22.575977325439453,
+          "unique_domains": 94,
+          "forwarded": 105,
+          "cached": 429,
+          "frequency": 0,
+          "types": {
+            "A": 323,
+            "AAAA": 276,
+            "ANY": 0,
+            "SRV": 0,
+            "SOA": 0,
+            "PTR": 6,
+            "TXT": 1,
+            "NAPTR": 0,
+            "MX": 1,
+            "DS": 0,
+            "RRSIG": 0,
+            "DNSKEY": 0,
+            "NS": 0,
+            "SVCB": 0,
+            "HTTPS": 83,
+            "OTHER": 1
+          },
+          "status": {
+            "UNKNOWN": 0,
+            "GRAVITY": 137,
+            "FORWARDED": 105,
+            "CACHE": 404,
+            "REGEX": 8,
+            "DENYLIST": 11,
+            "EXTERNAL_BLOCKED_IP": 0,
+            "EXTERNAL_BLOCKED_NULL": 0,
+            "EXTERNAL_BLOCKED_NXRA": 0,
+            "GRAVITY_CNAME": 0,
+            "REGEX_CNAME": 0,
+            "DENYLIST_CNAME": 0,
+            "RETRIED": 0,
+            "RETRIED_DNSSEC": 0,
+            "IN_PROGRESS": 1,
+            "DBBUSY": 0,
+            "SPECIAL_DOMAIN": 0,
+            "CACHE_STALE": 25,
+            "EXTERNAL_BLOCKED_EDE15": 0
+          },
+          "replies": {
+            "UNKNOWN": 1,
+            "NODATA": 99,
+            "NXDOMAIN": 5,
+            "CNAME": 55,
+            "IP": 492,
+            "DOMAIN": 5,
+            "RRNAME": 1,
+            "SERVFAIL": 0,
+            "REFUSED": 0,
+            "NOTIMP": 0,
+            "OTHER": 0,
+            "DNSSEC": 0,
+            "NONE": 0,
+            "BLOB": 33
+          }
+        },
+        "clients": {
+          "active": 6,
+          "total": 6
+        },
+        "gravity": {
+          "domains_being_blocked": 71493,
+          "last_update": 1792808271
+        },
+        "took": 1.9073486328125e-05
+      }
+    },
+    "GET /api/stats/summary#app-password": {
+      "status": 200,
+      "body": {
+        "queries": {
+          "total": 0,
+          "blocked": 0,
+          "percent_blocked": 0,
+          "unique_domains": 0,
+          "forwarded": 0,
+          "cached": 0,
+          "frequency": 0,
+          "types": {
+            "A": 0,
+            "AAAA": 0,
+            "ANY": 0,
+            "SRV": 0,
+            "SOA": 0,
+            "PTR": 0,
+            "TXT": 0,
+            "NAPTR": 0,
+            "MX": 0,
+            "DS": 0,
+            "RRSIG": 0,
+            "DNSKEY": 0,
+            "NS": 0,
+            "SVCB": 0,
+            "HTTPS": 0,
+            "OTHER": 0
+          },
+          "status": {
+            "UNKNOWN": 0,
+            "GRAVITY": 0,
+            "FORWARDED": 0,
+            "CACHE": 0,
+            "REGEX": 0,
+            "DENYLIST": 0,
+            "EXTERNAL_BLOCKED_IP": 0,
+            "EXTERNAL_BLOCKED_NULL": 0,
+            "EXTERNAL_BLOCKED_NXRA": 0,
+            "GRAVITY_CNAME": 0,
+            "REGEX_CNAME": 0,
+            "DENYLIST_CNAME": 0,
+            "RETRIED": 0,
+            "RETRIED_DNSSEC": 0,
+            "IN_PROGRESS": 0,
+            "DBBUSY": 0,
+            "SPECIAL_DOMAIN": 0,
+            "CACHE_STALE": 0,
+            "EXTERNAL_BLOCKED_EDE15": 0
+          },
+          "replies": {
+            "UNKNOWN": 0,
+            "NODATA": 0,
+            "NXDOMAIN": 0,
+            "CNAME": 0,
+            "IP": 0,
+            "DOMAIN": 0,
+            "RRNAME": 0,
+            "SERVFAIL": 0,
+            "REFUSED": 0,
+            "NOTIMP": 0,
+            "OTHER": 0,
+            "DNSSEC": 0,
+            "NONE": 0,
+            "BLOB": 0
+          }
+        },
+        "clients": {
+          "active": 0,
+          "total": 0
+        },
+        "gravity": {
+          "domains_being_blocked": 71493,
+          "last_update": 1792808271
+        },
+        "took": 2.288818359375e-05
+      }
+    },
+    "GET /api/stats/summary#blocking-disabled": {
+      "status": 200,
+      "body": {
+        "queries": {
+          "total": 691,
+          "blocked": 156,
+          "percent_blocked": 22.575977325439453,
+          "unique_domains": 94,
+          "forwarded": 105,
+          "cached": 429,
+          "frequency": 0,
+          "types": {
+            "A": 323,
+            "AAAA": 276,
+            "ANY": 0,
+            "SRV": 0,
+            "SOA": 0,
+            "PTR": 6,
+            "TXT": 1,
+            "NAPTR": 0,
+            "MX": 1,
+            "DS": 0,
+            "RRSIG": 0,
+            "DNSKEY": 0,
+            "NS": 0,
+            "SVCB": 0,
+            "HTTPS": 83,
+            "OTHER": 1
+          },
+          "status": {
+            "UNKNOWN": 0,
+            "GRAVITY": 137,
+            "FORWARDED": 105,
+            "CACHE": 404,
+            "REGEX": 8,
+            "DENYLIST": 11,
+            "EXTERNAL_BLOCKED_IP": 0,
+            "EXTERNAL_BLOCKED_NULL": 0,
+            "EXTERNAL_BLOCKED_NXRA": 0,
+            "GRAVITY_CNAME": 0,
+            "REGEX_CNAME": 0,
+            "DENYLIST_CNAME": 0,
+            "RETRIED": 0,
+            "RETRIED_DNSSEC": 0,
+            "IN_PROGRESS": 1,
+            "DBBUSY": 0,
+            "SPECIAL_DOMAIN": 0,
+            "CACHE_STALE": 25,
+            "EXTERNAL_BLOCKED_EDE15": 0
+          },
+          "replies": {
+            "UNKNOWN": 1,
+            "NODATA": 99,
+            "NXDOMAIN": 5,
+            "CNAME": 55,
+            "IP": 492,
+            "DOMAIN": 5,
+            "RRNAME": 1,
+            "SERVFAIL": 0,
+            "REFUSED": 0,
+            "NOTIMP": 0,
+            "OTHER": 0,
+            "DNSSEC": 0,
+            "NONE": 0,
+            "BLOB": 33
+          }
+        },
+        "clients": {
+          "active": 6,
+          "total": 6
+        },
+        "gravity": {
+          "domains_being_blocked": 71493,
+          "last_update": 1792808271
+        },
+        "took": 1.9073486328125e-05
+      }
+    },
+    "GET /api/stats/summary#invalid-sid": {
+      "status": 401,
+      "body": {
+        "error": {
+          "key": "unauthorized",
+          "message": "Unauthorized",
+          "hint": null
+        },
+        "took": 1.9073486328125e-05
+      }
+    },
+    "GET /api/stats/summary#no-password": {
+      "status": 200,
+      "body": {
+        "queries": {
+          "total": 0,
+          "blocked": 0,
+          "percent_blocked": 0,
+          "unique_domains": 0,
+          "forwarded": 0,
+          "cached": 0,
+          "frequency": 0,
+          "types": {
+            "A": 0,
+            "AAAA": 0,
+            "ANY": 0,
+            "SRV": 0,
+            "SOA": 0,
+            "PTR": 0,
+            "TXT": 0,
+            "NAPTR": 0,
+            "MX": 0,
+            "DS": 0,
+            "RRSIG": 0,
+            "DNSKEY": 0,
+            "NS": 0,
+            "SVCB": 0,
+            "HTTPS": 0,
+            "OTHER": 0
+          },
+          "status": {
+            "UNKNOWN": 0,
+            "GRAVITY": 0,
+            "FORWARDED": 0,
+            "CACHE": 0,
+            "REGEX": 0,
+            "DENYLIST": 0,
+            "EXTERNAL_BLOCKED_IP": 0,
+            "EXTERNAL_BLOCKED_NULL": 0,
+            "EXTERNAL_BLOCKED_NXRA": 0,
+            "GRAVITY_CNAME": 0,
+            "REGEX_CNAME": 0,
+            "DENYLIST_CNAME": 0,
+            "RETRIED": 0,
+            "RETRIED_DNSSEC": 0,
+            "IN_PROGRESS": 0,
+            "DBBUSY": 0,
+            "SPECIAL_DOMAIN": 0,
+            "CACHE_STALE": 0,
+            "EXTERNAL_BLOCKED_EDE15": 0
+          },
+          "replies": {
+            "UNKNOWN": 0,
+            "NODATA": 0,
+            "NXDOMAIN": 0,
+            "CNAME": 0,
+            "IP": 0,
+            "DOMAIN": 0,
+            "RRNAME": 0,
+            "SERVFAIL": 0,
+            "REFUSED": 0,
+            "NOTIMP": 0,
+            "OTHER": 0,
+            "DNSSEC": 0,
+            "NONE": 0,
+            "BLOB": 0
+          }
+        },
+        "clients": {
+          "active": 0,
+          "total": 0
+        },
+        "gravity": {
+          "domains_being_blocked": 71493,
+          "last_update": 0
+        },
+        "took": 1.6450881958007812e-05
+      }
+    },
+    "GET /api/stats/summary#session-expired": {
+      "status": 401,
+      "body": {
+        "error": {
+          "key": "unauthorized",
+          "message": "Unauthorized",
+          "hint": null
+        },
+        "took": 1.7881393432617188e-05
+      }
+    },
+    "GET /api/stats/summary#sid-cookie": {
+      "status": 401,
+      "body": {
+        "error": {
+          "key": "unauthorized",
+          "message": "Unauthorized",
+          "hint": null
+        },
+        "took": 1.33514404296875e-05
+      }
+    },
+    "GET /api/stats/summary#sid-header": {
+      "status": 200,
+      "body": {
+        "queries": {
+          "total": 691,
+          "blocked": 156,
+          "percent_blocked": 22.575977325439453,
+          "unique_domains": 94,
+          "forwarded": 105,
+          "cached": 429,
+          "frequency": 0,
+          "types": {
+            "A": 323,
+            "AAAA": 276,
+            "ANY": 0,
+            "SRV": 0,
+            "SOA": 0,
+            "PTR": 6,
+            "TXT": 1,
+            "NAPTR": 0,
+            "MX": 1,
+            "DS": 0,
+            "RRSIG": 0,
+            "DNSKEY": 0,
+            "NS": 0,
+            "SVCB": 0,
+            "HTTPS": 83,
+            "OTHER": 1
+          },
+          "status": {
+            "UNKNOWN": 0,
+            "GRAVITY": 137,
+            "FORWARDED": 105,
+            "CACHE": 404,
+            "REGEX": 8,
+            "DENYLIST": 11,
+            "EXTERNAL_BLOCKED_IP": 0,
+            "EXTERNAL_BLOCKED_NULL": 0,
+            "EXTERNAL_BLOCKED_NXRA": 0,
+            "GRAVITY_CNAME": 0,
+            "REGEX_CNAME": 0,
+            "DENYLIST_CNAME": 0,
+            "RETRIED": 0,
+            "RETRIED_DNSSEC": 0,
+            "IN_PROGRESS": 1,
+            "DBBUSY": 0,
+            "SPECIAL_DOMAIN": 0,
+            "CACHE_STALE": 25,
+            "EXTERNAL_BLOCKED_EDE15": 0
+          },
+          "replies": {
+            "UNKNOWN": 1,
+            "NODATA": 99,
+            "NXDOMAIN": 5,
+            "CNAME": 55,
+            "IP": 492,
+            "DOMAIN": 5,
+            "RRNAME": 1,
+            "SERVFAIL": 0,
+            "REFUSED": 0,
+            "NOTIMP": 0,
+            "OTHER": 0,
+            "DNSSEC": 0,
+            "NONE": 0,
+            "BLOB": 33
+          }
+        },
+        "clients": {
+          "active": 6,
+          "total": 6
+        },
+        "gravity": {
+          "domains_being_blocked": 71493,
+          "last_update": 1792808271
+        },
+        "took": 1.6450881958007812e-05
+      }
+    },
+    "GET /api/stats/summary#sid-query": {
+      "status": 200,
+      "body": {
+        "queries": {
+          "total": 691,
+          "blocked": 156,
+          "percent_blocked": 22.575977325439453,
+          "unique_domains": 94,
+          "forwarded": 105,
+          "cached": 429,
+          "frequency": 0,
+          "types": {
+            "A": 323,
+            "AAAA": 276,
+            "ANY": 0,
+            "SRV": 0,
+            "SOA": 0,
+            "PTR": 6,
+            "TXT": 1,
+            "NAPTR": 0,
+            "MX": 1,
+            "DS": 0,
+            "RRSIG": 0,
+            "DNSKEY": 0,
+            "NS": 0,
+            "SVCB": 0,
+            "HTTPS": 83,
+            "OTHER": 1
+          },
+          "status": {
+            "UNKNOWN": 0,
+            "GRAVITY": 137,
+            "FORWARDED": 105,
+            "CACHE": 404,
+            "REGEX": 8,
+            "DENYLIST": 11,
+            "EXTERNAL_BLOCKED_IP": 0,
+            "EXTERNAL_BLOCKED_NULL": 0,
+            "EXTERNAL_BLOCKED_NXRA": 0,
+            "GRAVITY_CNAME": 0,
+            "REGEX_CNAME": 0,
+            "DENYLIST_CNAME": 0,
+            "RETRIED": 0,
+            "RETRIED_DNSSEC": 0,
+            "IN_PROGRESS": 1,
+            "DBBUSY": 0,
+            "SPECIAL_DOMAIN": 0,
+            "CACHE_STALE": 25,
+            "EXTERNAL_BLOCKED_EDE15": 0
+          },
+          "replies": {
+            "UNKNOWN": 1,
+            "NODATA": 99,
+            "NXDOMAIN": 5,
+            "CNAME": 55,
+            "IP": 492,
+            "DOMAIN": 5,
+            "RRNAME": 1,
+            "SERVFAIL": 0,
+            "REFUSED": 0,
+            "NOTIMP": 0,
+            "OTHER": 0,
+            "DNSSEC": 0,
+            "NONE": 0,
+            "BLOB": 33
+          }
+        },
+        "clients": {
+          "active": 6,
+          "total": 6
+        },
+        "gravity": {
+          "domains_being_blocked": 71493,
+          "last_update": 1792808271
+        },
+        "took": 2.0742416381835938e-05
+      }
+    },
+    "GET /api/stats/summary#unauthenticated": {
+      "status": 401,
+      "body": {
+        "error": {
+          "key": "unauthorized",
+          "message": "Unauthorized",
+          "hint": null
+        },
+        "took": 2.193450927734375e-05
+      }
+    },
+    "GET /api/stats/top_clients?blocked=true&count=10": {
+      "status": 200,
+      "body": {
+        "clients": [
+          {
+            "name": "pi.hole",
+            "ip": "192.0.2.2",
+            "count": 44
+          },
+          {
+            "name": "phone.lan",
+            "ip": "192.0.2.22",
+            "count": 43
+          },
+          {
+            "name": "tv.lan",
+            "ip": "192.0.2.23",
+            "count": 31
+          },
+          {
+            "name": "laptop.lan",
+            "ip": "192.0.2.21",
+            "count": 22
+          },
+          {
+            "name": "",
+            "ip": "2001:db8:53::24",
+            "count": 16
+          }
+        ],
+        "total_queries": 691,
+        "blocked_queries": 156,
+        "took": 2.0742416381835938e-05
+      }
+    },
+    "GET /api/stats/top_clients?count=10": {
+      "status": 200,
+      "body": {
+        "clients": [
+          {
+            "name": "pi.hole",
+            "ip": "192.0.2.2",
+            "count": 220
+          },
+          {
+            "name": "laptop.lan",
+            "ip": "192.0.2.21",
+            "count": 170
+          },
+          {
+            "name": "phone.lan",
+            "ip": "192.0.2.22",
+            "count": 130
+          },
+          {
+            "name": "",
+            "ip": "2001:db8:53::24",
+            "count": 90
+          },
+          {
+            "name": "tv.lan",
+            "ip": "192.0.2.23",
+            "count": 70
+          },
+          {
+            "name": "localhost",
+            "ip": "127.0.0.1",
+            "count": 11
+          }
+        ],
+        "total_queries": 691,
+        "blocked_queries": 156,
+        "took": 2.9087066650390625e-05
+      }
+    },
+    "GET /api/stats/top_domains?blocked=true&count=10": {
+      "status": 200,
+      "body": {
+        "domains": [
+          {
+            "domain": "www.googletagservices.com",
+            "count": 27
+          },
+          {
+            "domain": "sb.scorecardresearch.com",
+            "count": 22
+          },
+          {
+            "domain": "googleads.g.doubleclick.net",
+            "count": 14
+          },
+          {
+            "domain": "static.criteo.net",
+            "count": 11
+          },
+          {
+            "domain": "track.hubspot.com",
+            "count": 8
+          },
+          {
+            "domain": "ads.yahoo.com",
+            "count": 7
+          },
+          {
+            "domain": "analytics.yahoo.com",
+            "count": 7
+          },
+          {
+            "domain": "taboola.com",
+            "count": 6
+          },
+          {
+            "domain": "pixel.facebook.com",
+            "count": 6
+          },
+          {
+            "domain": "app-measurement.com",
+            "count": 4
+          }
+        ],
+        "total_queries": 691,
+        "blocked_queries": 156,
+        "took": 3.266334533691406e-05
+      }
+    },
+    "GET /api/stats/top_domains?count=10": {
+      "status": 200,
+      "body": {
+        "domains": [
+          {
+            "domain": "www.google.com",
+            "count": 58
+          },
+          {
+            "domain": "google.com",
+            "count": 57
+          },
+          {
+            "domain": "github.com",
+            "count": 34
+          },
+          {
+            "domain": "api.github.com",
+            "count": 31
+          },
+          {
+            "domain": "pi-hole.net",
+            "count": 27
+          },
+          {
+            "domain": "youtube.com",
+            "count": 26
+          },
+          {
+            "domain": "raw.githubusercontent.com",
+            "count": 18
+          },
+          {
+            "domain": "cloudflare.com",
+            "count": 18
+          },
+          {
+            "domain": "reddit.com",
+            "count": 16
+          },
+          {
+            "domain": "www.youtube.com",
+            "count": 16
+          }
+        ],
+        "total_queries": 691,
+        "blocked_queries": 156,
+        "took": 2.5987625122070312e-05
+      }
+    },
+    "GET /api/stats/upstreams": {
+      "status": 200,
+      "body": {
+        "upstreams": [
+          {
+            "ip": "blocklist",
+            "name": "blocklist",
+            "port": -1,
+            "count": 156,
+            "statistics": {
+              "response": 0,
+              "variance": 0
+            }
+          },
+          {
+            "ip": "cache",
+            "name": "cache",
+            "port": -1,
+            "count": 429,
+            "statistics": {
+              "response": 0,
+              "variance": 0
+            }
+          },
+          {
+            "ip": "192.0.2.1",
+            "name": "router.lan",
+            "port": 53,
+            "count": 105,
+            "statistics": {
+              "response": 0.026486528487432572,
+              "variance": 0.023729639394711264
+            }
+          }
+        ],
+        "total_queries": 691,
+        "forwarded_queries": 105,
+        "took": 1.430511474609375e-05
+      }
+    },
+    "PATCH /api/config#app-password-forbidden": {
+      "status": 403,
+      "body": {
+        "error": {
+          "key": "forbidden",
+          "message": "Unable to change configuration (read-only)",
+          "hint": "The current app session is not allowed to modify Pi-hole config settings (webserver.api.app_sudo is false)"
+        },
+        "took": 5.602836608886719e-05
+      }
+    },
+    "POST /api/auth": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": "cGloZWxsby1mYWtlLXNpZA=",
+          "csrf": "cGloZWxsby1mYWtlY3NyZg=",
+          "validity": 1800,
+          "message": "password correct"
+        },
+        "took": 0.03607606887817383
+      }
+    },
+    "POST /api/auth#app-password": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": "cGloZWxsby1mYWtlLXNpZA=",
+          "csrf": "cGloZWxsby1mYWtlY3NyZg=",
+          "validity": 1800,
+          "message": "app-password correct"
+        },
+        "took": 0.06977415084838867
+      }
+    },
+    "POST /api/auth#empty-password": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "password incorrect"
+        },
+        "took": 1.52587890625e-05
+      }
+    },
+    "POST /api/auth#login-rate-limited": {
+      "status": 429,
+      "body": {
+        "error": {
+          "key": "rate_limiting",
+          "message": "Rate-limiting login attempts",
+          "hint": null
+        },
+        "took": 0.2514944076538086
+      }
+    },
+    "POST /api/auth#no-body": {
+      "status": 400,
+      "body": {
+        "error": {
+          "key": "bad_request",
+          "message": "No request body data",
+          "hint": null
+        },
+        "took": 5.1021575927734375e-05
+      }
+    },
+    "POST /api/auth#no-password": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "no password set"
+        },
+        "took": 1.2874603271484375e-05
+      }
+    },
+    "POST /api/auth#no-password-any-password": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "password incorrect"
+        },
+        "took": 1.5735626220703125e-05
+      }
+    },
+    "POST /api/auth#no-password-no-body": {
+      "status": 400,
+      "body": {
+        "error": {
+          "key": "bad_request",
+          "message": "No request body data",
+          "hint": null
+        },
+        "took": 4.172325134277344e-05
+      }
+    },
+    "POST /api/auth#seats-exceeded": {
+      "status": 429,
+      "body": {
+        "error": {
+          "key": "api_seats_exceeded",
+          "message": "API seats exceeded",
+          "hint": "increase webserver.api.max_sessions"
+        },
+        "took": 0.035105228424072266
+      }
+    },
+    "POST /api/auth#totp": {
+      "status": 200,
+      "body": {
+        "session": {
+          "valid": true,
+          "totp": true,
+          "sid": "cGloZWxsby1mYWtlLXNpZA=",
+          "csrf": "cGloZWxsby1mYWtlY3NyZg=",
+          "validity": 1800,
+          "message": "password correct"
+        },
+        "took": 0.034944772720336914
+      }
+    },
+    "POST /api/auth#totp-invalid": {
+      "status": 401,
+      "body": {
+        "error": {
+          "key": "unauthorized",
+          "message": "Invalid 2FA token",
+          "hint": null
+        },
+        "took": 0.036031484603881836
+      }
+    },
+    "POST /api/auth#totp-rate-limited": {
+      "status": 429,
+      "body": {
+        "error": {
+          "key": "rate_limiting",
+          "message": "Rate-limiting 2FA token requests, try again later",
+          "hint": null
+        },
+        "took": 0.03603935241699219
+      }
+    },
+    "POST /api/auth#totp-required": {
+      "status": 400,
+      "body": {
+        "error": {
+          "key": "bad_request",
+          "message": "No 2FA token found in JSON payload",
+          "hint": null
+        },
+        "took": 0.03608536720275879
+      }
+    },
+    "POST /api/auth#totp-wrong-password": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": true,
+          "sid": null,
+          "validity": -1,
+          "message": "password incorrect"
+        },
+        "took": 0.03622174263000488
+      }
+    },
+    "POST /api/auth#wrong-password": {
+      "status": 401,
+      "body": {
+        "session": {
+          "valid": false,
+          "totp": false,
+          "sid": null,
+          "validity": -1,
+          "message": "password incorrect"
+        },
+        "took": 0.03517913818359375
+      }
+    },
+    "POST /api/dns/blocking": {
+      "status": 200,
+      "body": {
+        "blocking": "disabled",
+        "timer": 300,
+        "took": 0.00219416618347168
+      }
+    },
+    "POST /api/dns/blocking#enable": {
+      "status": 200,
+      "body": {
+        "blocking": "enabled",
+        "timer": null,
+        "took": 0.00811147689819336
+      }
+    },
+    "PUT /api/info/version#method-not-allowed": {
+      "status": 404,
+      "body": {
+        "error": {
+          "key": "not_found",
+          "message": "Not found",
+          "hint": "/api/info/version"
+        },
+        "took": 1.9073486328125e-05
+      }
+    }
+  }
+}

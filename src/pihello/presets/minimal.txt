@@ -1,0 +1,2 @@
+{# minimal: one line with the blocking status and today's numbers. #}
+[{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]●[@title] Pi-hole[@bad]{blocking|map(enabled="")|prefix(" ")}[@muted] · [@accent]{queries.total|compact}[@muted] queries · [@highlight]{queries.percent_blocked|percent}[@muted] blocked · [@accent]{clients.active|number}[@muted] clients[]

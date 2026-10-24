@@ -1,0 +1,63 @@
+<svg class="rich-terminal" viewBox="0 0 506 74.4" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Regular"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+        font-style: normal;
+        font-weight: 400;
+    }
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .terminal-3049945022-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .terminal-3049945022-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .terminal-3049945022-r1 { fill: #00d700;font-weight: bold }
+.terminal-3049945022-r2 { fill: #ff5fd7 }
+.terminal-3049945022-r3 { fill: #808080 }
+.terminal-3049945022-r4 { fill: #5fd7ff }
+.terminal-3049945022-r5 { fill: #d4d4d4 }
+    </style>
+
+    <defs>
+    <clipPath id="terminal-3049945022-clip-terminal">
+      <rect x="0" y="0" width="487.0" height="23.4" />
+    </clipPath>
+    
+    </defs>
+
+    <rect fill="#16181d" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="504" height="72.4" rx="8"/><text class="terminal-3049945022-title" fill="#d4d4d4" text-anchor="middle" x="252" y="27">pihello&#160;--preset&#160;status</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#terminal-3049945022-clip-terminal)">
+    
+    <g class="terminal-3049945022-matrix">
+    <text class="terminal-3049945022-r1" x="0" y="20" textLength="12.2" clip-path="url(#terminal-3049945022-line-0)">●</text><text class="terminal-3049945022-r2" x="12.2" y="20" textLength="73.2" clip-path="url(#terminal-3049945022-line-0)">&#160;14.7%</text><text class="terminal-3049945022-r3" x="85.4" y="20" textLength="48.8" clip-path="url(#terminal-3049945022-line-0)">&#160;of&#160;</text><text class="terminal-3049945022-r4" x="134.2" y="20" textLength="61" clip-path="url(#terminal-3049945022-line-0)">48.2k</text><text class="terminal-3049945022-r5" x="488" y="20" textLength="12.2" clip-path="url(#terminal-3049945022-line-0)">
+</text>
+    </g>
+    </g>
+</svg>

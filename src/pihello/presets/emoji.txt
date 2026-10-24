@@ -1,0 +1,10 @@
+{# emoji: a playful greeting. Only uses emoji that terminals always draw two #}
+{# cells wide (no variation selectors), so the layout stays aligned.        #}
+[@title]👋 Hello from Pi-hole [@value]{version.core.local.version}[@muted] on [@subtitle]{pihole.host}
+[]{blocking|map(enabled="🟢", disabled="🔴", _="🟡")} [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]blocking {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
+[]📊 [@accent]{queries.total|number}[@muted] queries today
+[]🛑 [@highlight]{queries.blocked|number}[@muted] blocked, that's [@highlight]{queries.percent_blocked|percent}
+[]👥 [@accent]{clients.active|number}[@muted] clients online
+[]🧱 [@info]{gravity.domains_being_blocked|number}[@muted] domains on lists, fresh as of {gravity.last_update|ago}
+[]🙈 [@muted]last blocked: [@highlight]{recent_blocked|default("nothing yet")|truncate(36)}
+[]{updates.status|default("unknown")|map(available="🚀", current="✨", _="❔")} [@muted]{updates.status|default("unknown")|map(available="updates available for ", current="everything is up to date", _="update status unknown")}[@warn]{updates.components|join(", ")|default("")}[]

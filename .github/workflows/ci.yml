@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [master, v2]
+  pull_request:
+  workflow_dispatch:
+  # publish.yml runs the whole pipeline before releasing and publishes the
+  # `dist` artifact built by the `package` job below.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  # github.workflow is the caller's name when invoked via workflow_call, so a
+  # release run never shares (or cancels) a group with a regular CI run.
+  group: ${{ github.workflow }}-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - run: uv sync --locked
+      - name: ruff format
+        run: uv run --no-sync ruff format --check --diff
+      - name: ruff check
+        if: ${{ !cancelled() }}
+        run: uv run --no-sync ruff check --output-format=github
+      - name: mypy
+        if: ${{ !cancelled() }}
+        run: uv run --no-sync mypy
+      - name: generated docs are up to date
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --no-sync python scripts/gen_docs.py --check
+          uv run --no-sync python scripts/render_screenshots.py --check
+
+  test:
+    name: Test (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: macos-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.13"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - name: pytest
+        env:
+          # Enforce coverage `fail_under` (pyproject.toml) on one job only, so
+          # OS-specific branches don't make the threshold flaky elsewhere.
+          ENFORCE_COVERAGE: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.13' }}
+        run: |
+          args=(--color=yes --cov --cov-report=term)
+          if [[ "$ENFORCE_COVERAGE" != "true" ]]; then
+            args+=(--cov-fail-under=0)
+          fi
+          uv run --no-sync pytest "${args[@]}"
+
+  package:
+    name: Build and smoke-test package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Build sdist and wheel
+        run: uv build --no-sources
+      - name: Show contents
+        run: |
+          unzip -l dist/*.whl
+          tar -tzvf dist/*.tar.gz
+      - name: Install the wheel in fresh venvs and run it
+        run: |
+          version=$(basename dist/*.whl | cut -d- -f2)
+          for py in 3.10 3.14; do
+            echo "::group::Python $py"
+            venv="$RUNNER_TEMP/smoke-$py"
+            uv venv --quiet --python "$py" "$venv"
+            uv pip install --quiet --python "$venv" dist/*.whl
+            "$venv/bin/pihello" --version | tee "$RUNNER_TEMP/version.txt"
+            grep -qF "$version" "$RUNNER_TEMP/version.txt"
+            "$venv/bin/pihello" --demo --color always
+            "$venv/bin/pihello" presets --no-preview
+            "$venv/bin/python" -m pihello --version
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

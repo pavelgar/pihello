@@ -1,0 +1,14 @@
+{# box: a framed MOTD-style greeting with rounded borders (56 columns).   #}
+{# Every dynamic value is padded/truncated to a fixed width (ljust/rjust/ #}
+{# truncate, default("?") for missing data), so the right border always   #}
+{# lines up.                                                               #}
+[@border]╭──────────────────────────────────────────────────────╮
+[@border]│ [@title]Pi-hole[@muted] · [@subtitle]{pihole.host|truncate(19)|ljust(20)}[@warn]{timer|duration|prefix("for ")|default("")|truncate(11)|rjust(11)} [{blocking|default("unknown")|map(enabled=@good, disabled=@bad, _=@warn)}]{blocking|default("unknown")|map(enabled=" ● enabled", disabled="● disabled", failed="  ● failed", _=" ● unknown")}[@border] │
+[@border]│ [@label]Core [@value]{version.core.local.version|default("?")|truncate(8)|ljust(8)} [@label]Web [@value]{version.web.local.version|default("?")|truncate(8)|ljust(8)} [@label]FTL [@value]{version.ftl.local.version|default("?")|truncate(8)|ljust(8)}[@warn]{updates.available|if("↑ updates")|rjust(13)}[@border] │
+[@border]├──────────────────────────────────────────────────────┤
+[@border]│ [@label]Queries [@accent]{queries.total|number|default("?")|rjust(14)}      [@label]Clients [@accent]{clients.active|number|default("?")|rjust(16)}[@border] │
+[@border]│ [@label]Blocked [@highlight]{queries.blocked|number|default("?")|rjust(14)}      [@label]Ratio   [@highlight]{queries.percent_blocked|percent|default("?")|rjust(16)}[@border] │
+[@border]│ [@label]Gravity [@info]{gravity.domains_being_blocked|number|default("?")|rjust(14)}      [@label]Updated [@value]{gravity.last_update|ago|default("?")|rjust(16)}[@border] │
+[@border]├──────────────────────────────────────────────────────┤
+[@border]│ [@label]Last blocked  [@highlight]{recent_blocked|default("none yet")|truncate(38)|ljust(38)}[@border] │
+[@border]╰──────────────────────────────────────────────────────╯[]
