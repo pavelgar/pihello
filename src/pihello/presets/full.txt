@@ -1,0 +1,21 @@
+{# full: everything useful on one screen (72 columns): versions and updates, #}
+{# blocking, queries, clients, gravity, top lists, upstream, system health #}
+{# and FTL. Optional data degrades to "n/a".                              #}
+[@title]Pi-hole[@muted] on [@subtitle]{pihole.host}[@muted]{host.model|default("")|truncate(32)|prefix(" (")|suffix(")")} · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
+[@border]{"─"|repeat(72)}
+[@label]Versions    [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}[@muted]{version.docker.local|prefix(" · Docker ")|default("")}
+[@label]Updates     [{updates.status|default("unknown")|map(available=@warn, current=@good, _=@muted)}]{updates.components|join(", ")|prefix("available for ")|default("")}{updates.status|default("unknown")|map(available="", current="up to date", _="unknown")}
+[@label]Queries     [@accent]{queries.total|number}[@muted] today · [@highlight]{queries.blocked|number}[@muted] blocked · [@value]{queries.unique_domains|number}[@muted] unique domains
+[@label]Answered    [@value]{queries.forwarded|number}[@muted] forwarded · [@value]{queries.cached|number}[@muted] from cache · [@value]{queries.frequency|round(1)}[@muted] queries/s
+[@label]Blocked     [@highlight]{queries.percent_blocked|bar(40)} {queries.percent_blocked|percent}
+[@label]Clients     [@accent]{clients.active|number}[@muted] active of [@value]{clients.total|number}[@muted] · top [@value]{top_clients.0.label|default("n/a")|truncate(24)}[@muted]{top_clients.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@label]Gravity     [@info]{gravity.domains_being_blocked|number}[@muted] domains · updated [@value]{gravity.last_update|ago}
+[@label]Last block  [@highlight]{recent_blocked|default("none yet")|truncate(58)}
+[@label]Top domain  [@value]{top_domains.0.domain|default("n/a")|truncate(46)}[@muted]{top_domains.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@label]Top blocked [@highlight]{top_blocked.0.domain|default("n/a")|truncate(46)}[@muted]{top_blocked.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@label]Upstream    [@info]{upstreams.0.label|default("n/a")|truncate(36)}[@muted]{upstreams.0.count|number|prefix(" (")|suffix(" queries)")|default("")}
+[@border]{"─"|repeat(72)}
+[@label]Host        [@value]{host.uname.nodename|default("n/a")}[@muted] · {host.uname.machine|default("n/a")} · {host.uname.sysname|default("Linux")} {host.uname.release|default("n/a")|truncate(36)}
+[@label]Uptime      [@value]{system.uptime|duration}[@muted] · load [@value]{system.cpu.load.raw.0:.2f} {system.cpu.load.raw.1:.2f} {system.cpu.load.raw.2:.2f}[@muted] · [@value]{system.cpu.nprocs}[@muted] CPUs · [@value]{sensors.cpu_temp|round(1)|default("n/a")}[@muted]°{sensors.unit|default("C")}
+[@label]Memory      [@accent]{system.memory.ram.%used|bar(40)} [@value]{system.memory.ram.%used|percent}[@muted] of {system.memory.ram.total|bytes(KiB)}
+[@label]FTL         [@value]{ftl.%cpu|percent|default("n/a")}[@muted] CPU · [@value]{ftl.%mem|percent|default("n/a")}[@muted] memory · [{messages.count|default(0)|gt(0)|if(@warn, @good)}]{messages.count|default(0)|number}[@muted] messages[]

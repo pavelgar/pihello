@@ -1,0 +1,15 @@
+{# top: today's top 5 permitted and blocked domains, and the top 5 clients #}
+{# by all queries and by blocked queries. Short lists leave blank rows.    #}
+[@subtitle]Top permitted domains            Top blocked domains
+[@muted] 1 [@value]{top_domains.0.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_domains.0.count|number|default("")|rjust(7)}  [@muted] 1 [@highlight]{top_blocked.0.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked.0.count|number|default("")|rjust(7)}
+[@muted] 2 [@value]{top_domains.1.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_domains.1.count|number|default("")|rjust(7)}  [@muted] 2 [@highlight]{top_blocked.1.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked.1.count|number|default("")|rjust(7)}
+[@muted] 3 [@value]{top_domains.2.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_domains.2.count|number|default("")|rjust(7)}  [@muted] 3 [@highlight]{top_blocked.2.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked.2.count|number|default("")|rjust(7)}
+[@muted] 4 [@value]{top_domains.3.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_domains.3.count|number|default("")|rjust(7)}  [@muted] 4 [@highlight]{top_blocked.3.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked.3.count|number|default("")|rjust(7)}
+[@muted] 5 [@value]{top_domains.4.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_domains.4.count|number|default("")|rjust(7)}  [@muted] 5 [@highlight]{top_blocked.4.domain|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked.4.count|number|default("")|rjust(7)}
+
+[@subtitle]Top clients                      Top blocked clients
+[@muted] 1 [@value]{top_clients.0.label|default("")|truncate(20)|ljust(20)} [@accent]{top_clients.0.count|number|default("")|rjust(7)}  [@muted] 1 [@value]{top_blocked_clients.0.label|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked_clients.0.count|number|default("")|rjust(7)}
+[@muted] 2 [@value]{top_clients.1.label|default("")|truncate(20)|ljust(20)} [@accent]{top_clients.1.count|number|default("")|rjust(7)}  [@muted] 2 [@value]{top_blocked_clients.1.label|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked_clients.1.count|number|default("")|rjust(7)}
+[@muted] 3 [@value]{top_clients.2.label|default("")|truncate(20)|ljust(20)} [@accent]{top_clients.2.count|number|default("")|rjust(7)}  [@muted] 3 [@value]{top_blocked_clients.2.label|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked_clients.2.count|number|default("")|rjust(7)}
+[@muted] 4 [@value]{top_clients.3.label|default("")|truncate(20)|ljust(20)} [@accent]{top_clients.3.count|number|default("")|rjust(7)}  [@muted] 4 [@value]{top_blocked_clients.3.label|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked_clients.3.count|number|default("")|rjust(7)}
+[@muted] 5 [@value]{top_clients.4.label|default("")|truncate(20)|ljust(20)} [@accent]{top_clients.4.count|number|default("")|rjust(7)}  [@muted] 5 [@value]{top_blocked_clients.4.label|default("")|truncate(20)|ljust(20)} [@accent]{top_blocked_clients.4.count|number|default("")|rjust(7)}[]

@@ -1,0 +1,14 @@
+# Normalise line endings: always LF in the repository and in working trees, so
+# templates, fixtures and snapshot output compare byte-for-byte on every OS.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+
+# Generated files: collapsed in GitHub diffs and excluded from language stats.
+uv.lock linguist-generated=true
+docs/**/*.svg linguist-generated=true
+tests/fixtures/** linguist-generated=true

@@ -1,23 +1,192 @@
-[tool.poetry]
-name = "pihello"
-homepage = "https://github.com/pavelgar/Pi-hello"
-repository = "https://github.com/pavelgar/Pi-hello"
-keywords = ['command-line-tool', 'pi-hole', 'stats', 'pihello']
-version = "1.0.0"
-description = "Highly configurable and scriptable Pi-hole statistics in text"
-authors = ["pavelgar <pavel.garmuyev@gmail.com>"]
-license = "MIT"
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.8"
-
-[tool.poetry.dev-dependencies]
-black = "^22.8"
-
-[tool.poetry.scripts]
-pihello = 'pihello.cli:main'
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling>=1.27", "hatch-fancy-pypi-readme>=24.1"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pihello"
+dynamic = ["version", "readme"]
+description = "A configurable Pi-hole v6 status greeting for your terminal"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "pavelgar", email = "pavel.garmuyev@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["pi-hole", "pihole", "dns", "cli", "terminal", "motd", "greeting", "stats", "dashboard"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: Name Service (DNS)",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Terminals",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+# Zero runtime dependencies on Python >= 3.11; tomli backfills tomllib on 3.10.
+dependencies = ["tomli>=1.1.0; python_version < '3.11'"]
+
+[project.urls]
+Homepage = "https://github.com/pavelgar/pihello"
+Documentation = "https://github.com/pavelgar/pihello/tree/master/docs"
+Repository = "https://github.com/pavelgar/pihello"
+Issues = "https://github.com/pavelgar/pihello/issues"
+Changelog = "https://github.com/pavelgar/pihello/blob/master/CHANGELOG.md"
+
+[project.scripts]
+pihello = "pihello.cli:main"
+
+[dependency-groups]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+]
+test = [
+    "pytest>=8",
+    "pytest-cov>=6",
+    "hypothesis>=6.100",
+    "trustme>=1.2",
+]
+lint = [
+    "ruff>=0.12",
+    "mypy>=1.16",
+]
+docs = [
+    "rich>=14",
+]
+
+# README.md uses relative links so it renders on every branch on GitHub; PyPI
+# gets absolute ones pointing at the default branch.
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = 'src="(docs/[^"]+)"'
+replacement = 'src="https://raw.githubusercontent.com/pavelgar/pihello/master/\1"'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\(((?:docs/|CHANGELOG\.md|CONTRIBUTING\.md|LICENSE)[^)]*)\)'
+replacement = '](https://github.com/pavelgar/pihello/blob/master/\1)'
+
+[tool.hatch.version]
+path = "src/pihello/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/scripts",  # tests/test_fixtures.py checks the fixture recorder
+    "/docs",
+    "/CHANGELOG.md",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pihello"]
+
+# --------------------------------------------------------------------------- #
+# pytest
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+minversion = "8.0"
+pythonpath = ["tests"]
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "-m", "not integration",
+]
+markers = [
+    "integration: requires a live Pi-hole (container started via podman/docker, or PIHELLO_IT_URL)",
+]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["pihello"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 90
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+    "if __name__ == .__main__.:",
+]
+
+# --------------------------------------------------------------------------- #
+# ruff
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "C4",       # comprehensions
+    "RUF",      # ruff-specific
+    "PL",       # pylint
+    "PT",       # pytest style
+    "S",        # bandit
+    "N",        # naming
+    "RET",      # return
+    "PTH",      # pathlib
+    "TC",       # type-checking imports
+    "ERA",      # commented-out code
+]
+ignore = [
+    "PLR0911",  # too many return statements
+    "PLR0912",  # too many branches
+    "PLR0913",  # too many arguments
+    "PLR0915",  # too many statements
+    "PLR2004",  # magic values
+    "N818",     # exception names (ConnectionFailed, TooManySessions…) are deliberate API
+    "S310",     # urllib with user-supplied URL is the whole point of an API client
+    "S603",     # subprocess without shell (password_command is user-configured)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S104", "S105", "S106", "S108", "PLC0415", "S311"]
+"scripts/**" = ["S101", "S603", "S607", "T201"]
+
+[tool.ruff.format]
+docstring-code-format = true
+exclude = ["*.md"]  # code blocks in docs are signature sketches, not runnable code
+
+# --------------------------------------------------------------------------- #
+# mypy
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+pretty = true
+files = ["src/pihello"]
+
+[[tool.mypy.overrides]]
+module = ["tomli"]
+ignore_missing_imports = true

@@ -1,0 +1,10 @@
+{# plain: ASCII only (no box drawing, block elements or emoji), so it works #}
+{# on any terminal, over serial consoles and in log files.                  #}
+[@title]Pi-hole[@muted] @ [@subtitle]{pihole.host}[@muted] - [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]{blocking|upper}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if(" - ")}[@warn]{updates.available|if("update available")}
+[@border]{"-"|repeat(60)}
+[@label]Versions : [@value]core {version.core.local.version}[@muted], [@value]web {version.web.local.version}[@muted], [@value]ftl {version.ftl.local.version}
+[@label]Queries  : [@accent]{queries.total|number}[@muted] today, [@highlight]{queries.blocked|number}[@muted] blocked ([@highlight]{queries.percent_blocked|percent}[@muted])
+[@label]Blocked  : [@muted]\[[@highlight]{queries.percent_blocked|bar(46, chars="#-")}[@muted]\]
+[@label]Clients  : [@accent]{clients.active|number}[@muted] active, [@value]{clients.total|number}[@muted] known
+[@label]Gravity  : [@info]{gravity.domains_being_blocked|number}[@muted] domains, updated [@value]{gravity.last_update|ago}
+[@label]Latest   : [@highlight]{recent_blocked|default("none yet")|truncate(48, end="...")}[]

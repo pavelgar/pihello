@@ -1,0 +1,5 @@
+{# status: an ultra-short segment for tmux, starship, polybar, waybar …    #}
+{# The dot shows the blocking state; then % blocked of today's queries.    #}
+{# A running disable timer is appended. Use `--color never` where the bar  #}
+{# does its own coloring.                                                   #}
+[{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]●[@highlight] {queries.percent_blocked|percent}[@muted] of [@accent]{queries.total|compact}[@warn]{timer|duration|prefix(" · ")|default("")}[]

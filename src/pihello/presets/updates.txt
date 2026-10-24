@@ -1,0 +1,13 @@
+{# updates: installed vs. latest version of every component, with markers. #}
+{# The Docker row only has versions inside the official container image. #}
+{# A marker shows "unknown" when Pi-hole has not checked for updates yet.  #}
+[@title]Pi-hole versions[@muted] on [@subtitle]{pihole.host}
+[@border]{"─"|repeat(56)}
+[@subtitle]Component   Installed      Latest
+[@border]{"─"|repeat(56)}
+[@label]Core        [@value]{version.core.local.version|default("-")|truncate(14)|ljust(14)} [@value]{version.core.remote.version|default("-")|truncate(14)|ljust(14)} [{version.core.update|map(true=@warn, false=@good)|default(@muted)}]{version.core.update|map(true="↑ update", false="✓ latest")|default("unknown")}[@muted]{version.core.local.branch|map(master="")|prefix(" (")|suffix(")")|default("")}
+[@label]Web         [@value]{version.web.local.version|default("-")|truncate(14)|ljust(14)} [@value]{version.web.remote.version|default("-")|truncate(14)|ljust(14)} [{version.web.update|map(true=@warn, false=@good)|default(@muted)}]{version.web.update|map(true="↑ update", false="✓ latest")|default("unknown")}[@muted]{version.web.local.branch|map(master="")|prefix(" (")|suffix(")")|default("")}
+[@label]FTL         [@value]{version.ftl.local.version|default("-")|truncate(14)|ljust(14)} [@value]{version.ftl.remote.version|default("-")|truncate(14)|ljust(14)} [{version.ftl.update|map(true=@warn, false=@good)|default(@muted)}]{version.ftl.update|map(true="↑ update", false="✓ latest")|default("unknown")}[@muted]{version.ftl.local.branch|map(master="")|prefix(" (")|suffix(")")|default("")}
+[@label]Docker      [@value]{version.docker.local|default("-")|truncate(14)|ljust(14)} [@value]{version.docker.remote|default("-")|truncate(14)|ljust(14)} [@warn]{version.docker.update|if("↑ update")}[@muted]{version.docker.local|not|if("not in Docker")}
+[@border]{"─"|repeat(56)}
+[{updates.status|default("unknown")|map(available=@warn, current=@good, _=@muted)}]{updates.components|join(", ")|prefix("Updates available: ")|default("")}{updates.status|default("unknown")|map(available="", current="Everything is up to date.", _="Update status unknown.")}[]

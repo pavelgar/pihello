@@ -1,0 +1,13 @@
+{# history: the last 24 hours of queries as sparklines (10-minute buckets  #}
+{# resampled to 48 cells, so one cell is 30 minutes). Each line is scaled  #}
+{# from zero to its own maximum; the numbers below are per 10 minutes.     #}
+[@title]Last 24 hours[@muted] · [@accent]{history|pluck(total)|sum|number}[@muted] queries · [@highlight]{history|pluck(blocked)|sum|number}[@muted] blocked
+[@border]{"─"|repeat(57)}
+[@label]total    [@accent]{history|pluck(total)|spark(48, min=0)}
+[@muted]         min [@value]{history|pluck(total)|min|number}[@muted] · max [@value]{history|pluck(total)|max|number}[@muted] · avg [@value]{history|pluck(total)|avg|round|number}[@muted] per 10 min
+[@label]blocked  [@highlight]{history|pluck(blocked)|spark(48, min=0)}
+[@muted]         min [@value]{history|pluck(blocked)|min|number}[@muted] · max [@value]{history|pluck(blocked)|max|number}[@muted] · avg [@value]{history|pluck(blocked)|avg|round|number}[@muted] per 10 min
+[@label]cached   [@info]{history|pluck(cached)|spark(48, min=0)}
+[@muted]         min [@value]{history|pluck(cached)|min|number}[@muted] · max [@value]{history|pluck(cached)|max|number}[@muted] · avg [@value]{history|pluck(cached)|avg|round|number}[@muted] per 10 min
+[@border]         ├──────────────────────┼───────────────────────┤
+[@muted]         24h ago             12h ago                  now[]

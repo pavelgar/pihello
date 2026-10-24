@@ -1,0 +1,23 @@
+{# fetch: neofetch/fastfetch style, the Pi-hole berry from the installer #}
+{# on the left (leaf in @good, berry in @highlight), key: value on the   #}
+{# right, and a strip of the theme's colors at the bottom.               #}
+[@good] .;;,.                        [@title]pi-hole[@muted]@[@title]{pihole.host}
+[@good] .ccccc:,.                    [@border]{"─"|repeat(20)}
+[@good]  :cccclll:.      ..,,        [@subtitle]Status[@muted]: [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
+[@good]   :ccccclll.   ;ooodc        [@subtitle]Core[@muted]: [@value]{version.core.local.version}[@warn]{version.core.update|if("↑")}
+[@good]    'ccll:;ll .oooodc         [@subtitle]Web[@muted]: [@value]{version.web.local.version}[@warn]{version.web.update|if("↑")}
+[@good]      .;cll.;;looo:.          [@subtitle]FTL[@muted]: [@value]{version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}
+[@highlight]          .. ','.             [@subtitle]Queries[@muted]: [@accent]{queries.total|number}[@muted] today
+[@highlight]         .',,,,,,'.           [@subtitle]Blocked[@muted]: [@highlight]{queries.blocked|number}[@muted] ([@highlight]{queries.percent_blocked|percent}[@muted])
+[@highlight]       .',,,,,,,,,,.          [@subtitle]Clients[@muted]: [@accent]{clients.active|number}[@muted] active
+[@highlight]     .',,,,,,,,,,,,....       [@subtitle]Gravity[@muted]: [@info]{gravity.domains_being_blocked|number}[@muted] domains
+[@highlight]   ....''',,,,,,,'.......     [@subtitle]Updated[@muted]: [@value]{gravity.last_update|ago}
+[@highlight] .........  ....  .........   [@subtitle]Upstream[@muted]: [@info]{upstreams.0.label|default("n/a")|truncate(28)}
+[@highlight] ..........      ..........   [@subtitle]Host[@muted]: [@value]{host.model|default("n/a")|truncate(30)}
+[@highlight] ..........      ..........   [@subtitle]Kernel[@muted]: [@value]{host.uname.sysname|default("Linux")} {host.uname.release|default("n/a")|truncate(26)}
+[@highlight] .........  ....  .........   [@subtitle]Uptime[@muted]: [@value]{system.uptime|duration(long)}
+[@highlight]   ........,,,,,,,'......     [@subtitle]Load[@muted]: [@value]{system.cpu.load.raw.0:.2f} {system.cpu.load.raw.1:.2f} {system.cpu.load.raw.2:.2f}
+[@highlight]     ....',,,,,,,,,,,,.       [@subtitle]Memory[@muted]: [@value]{system.memory.ram.used|bytes(KiB)}[@muted] / [@value]{system.memory.ram.total|bytes(KiB)}[@muted] ({system.memory.ram.%used|percent})
+[@highlight]        .',,,,,,,,,'.         [@subtitle]CPU temp[@muted]: [@value]{sensors.cpu_temp|round(1)|default("n/a")}[@muted]°{sensors.unit|default("C")}
+[@highlight]         .',,,,,,'.
+[@highlight]           ..'''.             [@title]███[@subtitle]███[@accent]███[@info]███[@good]███[@warn]███[@bad]███[@highlight]███[]

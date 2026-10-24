@@ -1,0 +1,24 @@
+{# dashboard: a PADD-inspired dashboard (64 columns) with STATS, NETWORK  #}
+{# and SYSTEM sections, percentage bars and 24 hour query sparklines.     #}
+{# CPU load is the 1-minute load average relative to the number of cores. #}
+[@title]Pi-hole[@muted] · [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking|upper}[@warn]{timer|duration|prefix(" ")|default("")}
+[@border]━━ [@subtitle]STATS [@border]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[@label]Blocking   [@info]{gravity.domains_being_blocked|number|suffix(" domains")|default("?")|ljust(21)}[@label]Clients    [@accent]{clients.active|number}[@muted] of {clients.total|number}
+[@label]Queries    [@accent]{queries.total|number|default("?")|ljust(21)}[@label]Blocked    [@highlight]{queries.blocked|number}
+[@label]Piholed    [@highlight]{queries.percent_blocked|bar(44)} {queries.percent_blocked|percent|rjust(6)}
+[@label]24h total  [@accent]{history|pluck(total)|spark(44)}[@muted] max {history|pluck(total)|max|compact}
+[@label]24h block  [@highlight]{history|pluck(blocked)|spark(44)}[@muted] max {history|pluck(blocked)|max|compact}
+[@label]Latest     [@highlight]{recent_blocked|default("none yet")|truncate(52)}
+[@label]Top ad     [@highlight]{top_blocked.0.domain|default("n/a")|truncate(40)}[@muted]{top_blocked.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@label]Top domain [@value]{top_domains.0.domain|default("n/a")|truncate(40)}[@muted]{top_domains.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@label]Top client [@value]{top_clients.0.label|default("n/a")|truncate(40)}[@muted]{top_clients.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@border]━━ [@subtitle]NETWORK [@border]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[@label]Hostname   [@value]{host.uname.nodename|default("n/a")|truncate(20)|ljust(21)}[@label]Address    [@info]{network.address|default("n/a")}
+[@label]Interface  [@value]{network.interface|default("n/a")|truncate(20)|ljust(21)}[@label]Gateway    [@info]{network.gateway|default("n/a")}
+[@label]Upstream   [@info]{upstreams.0.label|default("n/a")|truncate(40)}[@muted]{upstreams.0.count|number|prefix(" (")|suffix(")")|default("")}
+[@border]━━ [@subtitle]SYSTEM [@border]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[@label]Model      [@value]{host.model|default("n/a")|truncate(52)}
+[@label]Uptime     [@value]{system.uptime|duration|default("?")|ljust(21)}[@label]Load       [@value]{system.cpu.load.raw.0:.2f} {system.cpu.load.raw.1:.2f} {system.cpu.load.raw.2:.2f}
+[@label]Processes  [@value]{system.procs|number|default("?")|ljust(21)}[@label]CPU temp   [@value]{sensors.cpu_temp|round(1)|default("n/a")}[@muted]°{sensors.unit|default("C")}
+[@label]CPU load   [@accent]{system.cpu.load.percent.0|bar(44)} [@value]{system.cpu.load.percent.0|percent|rjust(6)}
+[@label]Memory     [@accent]{system.memory.ram.%used|bar(44)} [@value]{system.memory.ram.%used|percent|rjust(6)}[]

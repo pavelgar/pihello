@@ -1,26 +1,111 @@
-name: Publish to PyPI
+name: Publish
 
+# Publishing a GitHub release tagged vX.Y.Z (matching pihello.__version__)
+# runs the full CI pipeline, then uploads the exact distributions CI built and
+# tested to PyPI via trusted publishing. The tagged commit must be on master,
+# and the release must be marked as a pre-release exactly when the version is
+# one (2.1.0rc1, 2.1.0b2, 2.1.0.dev1).
 on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    environment: pypi
+  ci:
+    name: CI
+    # `$/` self-repository syntax is not understood by actionlint 1.7.12 yet.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
     permissions:
-      id-token: write # required for PyPI trusted publishing (OIDC)
+      contents: read
+
+  verify:
+    name: Check tag, branch and version
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.12"
-
-      - name: Build sdist and wheel
+          persist-credentials: false
+          fetch-depth: 0 # origin/master, to check that the tagged commit is on it
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+      - id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
-          python -m pip install build
-          python -m build
+          set -euo pipefail
+          version=$(PYTHONPATH=src python3 -c 'import pihello; print(pihello.__version__)')
+          wheel=$(basename dist/*.whl)
+          sdist=$(basename dist/*.tar.gz)
+          echo "tag=$TAG __version__=$version prerelease=$PRERELEASE commit=$GITHUB_SHA"
+          echo "wheel=$wheel sdist=$sdist"
+          if [[ "$TAG" != "v$version" ]]; then
+            echo "::error::Release tag '$TAG' does not match pihello.__version__ (expected 'v$version')."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::The tagged commit $GITHUB_SHA is not on master; tag a commit of master."
+            exit 1
+          fi
+          pre_release='(a|b|rc)[0-9]+$|\.dev[0-9]+$'
+          if [[ "$version" =~ $pre_release ]]; then is_pre=true; else is_pre=false; fi
+          if [[ "$PRERELEASE" == true && "$is_pre" == false ]]; then
+            echo "::error::The GitHub release is a pre-release, but $version is a final version (PyPI would publish it as final): untick 'Set as a pre-release', or release e.g. ${version}rc1."
+            exit 1
+          fi
+          if [[ "$PRERELEASE" != true && "$is_pre" == true ]]; then
+            echo "::error::$version is a pre-release version, but the GitHub release is not marked as a pre-release: tick 'Set as a pre-release'."
+            exit 1
+          fi
+          if [[ "$wheel" != "pihello-$version-py3-none-any.whl" || "$sdist" != "pihello-$version.tar.gz" ]]; then
+            echo "::error::Built distributions ($wheel, $sdist) do not match version $version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+  pypi:
+    name: Publish to PyPI
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pihello/${{ needs.verify.outputs.version }}/
+    permissions:
+      id-token: write # trusted publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  release-assets:
+    name: Attach distributions to the release
+    needs: pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # upload release assets
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --clobber
