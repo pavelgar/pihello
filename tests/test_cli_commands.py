@@ -13,6 +13,8 @@ from pihello import cli, config, demo, presets, sources, themes
 from pihello.cli import format_value, lookup, main
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from helpers.fakepihole import FakePihole
 
 PASSWORD = "pihello-test"
@@ -87,6 +89,53 @@ def test_preset_source(capsys: pytest.CaptureFixture[str]) -> None:
     code, _, err = run(["presets", "--source"], capsys)
     assert code == 2
     assert "needs a preset NAME" in err
+
+
+def test_preset_source_to_a_new_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    target = tmp_path / "new" / "folder" / "greeting.txt"
+    code, out, _ = run(["presets", "default", "--source", "-o", str(target)], capsys)
+    assert code == 0
+    assert out == f"wrote {target}\n"
+    data = target.read_bytes()
+    assert data.decode("utf-8") == presets.get("default").source  # UTF-8 everywhere
+    assert b"\r\n" not in data
+    # It never overwrites, e.g. a template you have already customised.
+    target.write_text("mine")
+    code, _, err = run(["presets", "default", "--source", "-o", str(target)], capsys)
+    assert code == 2
+    assert "already exists" in err
+    assert target.read_text() == "mine"
+
+
+def test_output_needs_source(capsys: pytest.CaptureFixture[str]) -> None:
+    code, _, err = run(["presets", "default", "-o", "x.txt"], capsys)
+    assert code == 2
+    assert "--output only works with --source" in err
+
+
+def test_redirected_preset_source_is_utf8(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Windows redirects stdout as cp1252, which can't hold "●"; `> file` must
+    # still produce the UTF-8 file that templates are read as.
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="cp1252", errors="strict", write_through=True)
+    monkeypatch.setattr(cli, "_stdout", lambda: stream)
+    assert main(["presets", "default", "--source"]) == 0
+    stream.flush()
+    assert raw.getvalue().decode("utf-8") == presets.get("default").source
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16"])
+def test_template_files_in_utf8_or_utf16(
+    encoding: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Windows PowerShell 5.1 writes `>` redirections as UTF-16 with a BOM.
+    template = tmp_path / "greeting.txt"
+    template.write_text("● {queries.total|number}\n", encoding=encoding)
+    code, out, err = run(["--demo", "--color", "never", "-f", str(template)], capsys)
+    assert code == 0, err
+    assert out == "● 48,220\n"
 
 
 def test_unknown_preset(capsys: pytest.CaptureFixture[str]) -> None:

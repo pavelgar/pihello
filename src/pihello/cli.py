@@ -37,6 +37,7 @@ from pihello.errors import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
     from pihello.client import PiholeClient
     from pihello.config import Settings, TemplateChoice
@@ -596,7 +597,7 @@ def _presets_parser() -> argparse.ArgumentParser:
             "  pihello presets                   every preset with a demo preview\n"
             "  pihello presets --no-preview      just the list\n"
             "  pihello presets default --live    preview with your Pi-hole's data\n"
-            "  pihello presets default --source > ~/.config/pihello/greeting.txt\n"
+            "  pihello presets default --source -o ~/.config/pihello/greeting.txt\n"
             "                                    start your own template from a preset"
         ),
     )
@@ -609,6 +610,12 @@ def _presets_parser() -> argparse.ArgumentParser:
         help="render each preset (default: yes)",
     )
     opts.add_argument("--source", action="store_true", help="print the template source of NAME")
+    opts.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        help="with --source: write it to FILE as UTF-8 (creates folders, never overwrites)",
+    )
     _live_options(opts)
     opts.add_argument("-T", "--theme", metavar="NAME", help="theme for the previews")
     opts.add_argument(
@@ -907,6 +914,33 @@ def _isatty(stream: TextIO) -> bool:
         return False
 
 
+def _write_new_file(name: str, text: str) -> Path:
+    """Write ``text`` as UTF-8 with ``\\n`` line endings to a file that must not exist yet."""
+    from pathlib import Path  # noqa: PLC0415
+
+    path = Path(name).expanduser()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+    except FileExistsError:
+        raise ConfigError(
+            f"{path} already exists", hint="choose another file name, or delete that file first"
+        ) from None
+    except OSError as exc:
+        raise ConfigError(f"cannot write {path}: {exc.strerror or exc}") from None
+    return path
+
+
+def _decode_template(data: bytes) -> str:
+    """Template files are UTF-8; a UTF-16 BOM (Windows PowerShell 5.1's ``>``) is honoured."""
+    import codecs  # noqa: PLC0415 - already loaded at startup
+
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16")
+    return data.decode("utf-8-sig")
+
+
 def load_template(choice: TemplateChoice, *, stdin: TextIO | None = None) -> Template:
     """Read and parse the template described by ``choice``."""
     from pihello.template import Template  # noqa: PLC0415
@@ -923,7 +957,7 @@ def load_template(choice: TemplateChoice, *, stdin: TextIO | None = None) -> Tem
         return Template.parse(stream.read(), name="<stdin>")
     path = choice.resolved_path()
     try:
-        source = path.read_text(encoding="utf-8-sig")
+        source = _decode_template(path.read_bytes())
     except FileNotFoundError:
         raise ConfigError(
             f"template file not found: {path}",
@@ -1421,10 +1455,25 @@ def _cmd_presets(args: argparse.Namespace, ui: UI) -> int:
             raise ConfigError(
                 "--source needs a preset NAME", hint="e.g. pihello presets default --source"
             )
-        stdout.write(
-            chosen[0].source if chosen[0].source.endswith("\n") else chosen[0].source + "\n"
-        )
+        source = chosen[0].source if chosen[0].source.endswith("\n") else chosen[0].source + "\n"
+        if args.output:
+            path = _write_new_file(args.output, source)
+            stdout.write(f"wrote {path}\n")
+            return EXIT_OK
+        if not _isatty(stdout):
+            import contextlib  # noqa: PLC0415
+
+            # `> file` should give a UTF-8 file like the one templates are read as,
+            # not the locale's encoding (cp1252 on Windows can't hold ● or ·).
+            with contextlib.suppress(AttributeError, OSError, ValueError):
+                stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        stdout.write(source)
         return EXIT_OK
+    if args.output:
+        raise ConfigError(
+            "--output only works with --source",
+            hint="e.g. pihello presets default --source -o greeting.txt",
+        )
     settings = resolve_settings(args, ui)
     if args.theme:
         settings = replace(settings, theme=args.theme)
