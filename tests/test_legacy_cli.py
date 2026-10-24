@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 from typing import TYPE_CHECKING
 
+from pihello import config
 from pihello.cli import UI, build_parser, cli_overrides, main, resolve_settings
 
 if TYPE_CHECKING:
@@ -77,8 +78,8 @@ def test_https_flag_upgrades_explicit_http() -> None:
     assert values["url"] == "https://host"
 
 
-def test_https_flag_applies_to_configured_url(home: Path) -> None:
-    path = home / ".config" / "pihello" / "config.toml"
+def test_https_flag_applies_to_configured_url() -> None:
+    path = config.default_config_path()
     path.parent.mkdir(parents=True)
     path.write_text("url = 'http://pi.hole'\n")
     args = build_parser().parse_args(["-p"])

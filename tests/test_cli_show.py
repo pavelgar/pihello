@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 import pytest
 
-from pihello import cli
+from pihello import cli, config
 from pihello.cli import main
 
 if TYPE_CHECKING:
@@ -30,8 +30,8 @@ def run(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, str, 
 
 
 @pytest.fixture
-def cfg(home: Path) -> Path:
-    path = home / ".config" / "pihello" / "config.toml"
+def cfg() -> Path:
+    path = config.default_config_path()  # in the isolated HOME
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -397,11 +397,12 @@ def test_unreachable_is_quiet_in_shell_greetings(
 ) -> None:
     cfg.write_text('url = "http://127.0.0.1:9"\npassword = "x"\n')
     cfg.chmod(0o600)
-    code, out, err = run(["--timeout", "1"], capsys)
+    # Windows retries a refused connection for about 2 s, so leave room for that
+    code, out, err = run(["--timeout", "5"], capsys)
     assert code == 3
     assert out == ""
     assert "refused" in err
-    assert run(["-q", "--timeout", "1"], capsys) == (3, "", "")
+    assert run(["-q", "--timeout", "5"], capsys) == (3, "", "")
 
 
 def test_missing_endpoint_renders_placeholder(
@@ -509,8 +510,6 @@ def test_pihole_url_and_host_are_normalised_on_every_path(
 def test_cache_from_config_skips_password_command(
     cfg: Path, fake_pihole: FakePihole, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from pihello import config
-
     marker = tmp_path / "ran"
     code = f"open({str(marker)!r}, 'a').write('x'); print({PASSWORD!r})"
     cfg.write_text(
@@ -619,7 +618,8 @@ def test_watch_unreachable_at_start(
     cfg.write_text('url = "http://127.0.0.1:9"\npassword = "x"\n')
     cfg.chmod(0o600)
     ticker.events = [False]
-    code, out, err = run(["--watch", "1", "-e", "{blocking}", "--timeout", "0.5"], capsys)
+    # Windows retries a refused connection for about 2 s, so leave room for that
+    code, out, err = run(["--watch", "1", "-e", "{blocking}", "--timeout", "5"], capsys)
     assert code == 0
     # not a TTY: plain frames, errors also reported on stderr
     assert out.count("retrying") == 2

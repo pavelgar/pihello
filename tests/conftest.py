@@ -68,6 +68,21 @@ def home(_isolated_environment: Path) -> Path:
 
 
 @pytest.fixture
+def posix_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Detect color support by the POSIX rules, also on Windows.
+
+    A fake TTY (a ``StringIO`` whose ``isatty()`` is true) is no Windows
+    console, so on Windows pihello rightly finds no VT support behind it and
+    turns colors off. Tests of the color *decisions* use this fixture to get
+    the same answer on every OS; the Windows console rules have their own tests
+    (``windows`` fixture in test_terminal.py).
+    """
+    from pihello import terminal
+
+    monkeypatch.setattr(terminal, "_IS_WINDOWS", False)
+
+
+@pytest.fixture
 def fake_pihole_factory() -> Iterator[Callable[..., FakePihole]]:
     """Factory for started :class:`helpers.fakepihole.FakePihole` servers.
 

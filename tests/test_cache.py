@@ -29,15 +29,24 @@ posix_only = pytest.mark.skipif(os.name != "posix", reason="POSIX permissions")
 # --------------------------------------------------------------------------- #
 # Location                                                                     #
 # --------------------------------------------------------------------------- #
+@pytest.fixture
+def xdg(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use the XDG rules (Linux, macOS, ...) on every OS."""
+    monkeypatch.setattr(sys, "platform", "linux")
+
+
+@pytest.mark.usefixtures("xdg")
 def test_cache_dir_uses_xdg(home: Path) -> None:
     assert cache.cache_dir() == home / ".cache" / "pihello"
 
 
+@pytest.mark.usefixtures("xdg")
 def test_cache_dir_custom_xdg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
     assert cache.cache_dir() == tmp_path / "xdg" / "pihello"
 
 
+@pytest.mark.usefixtures("xdg")
 @pytest.mark.parametrize("value", ["", "relative/dir"])
 def test_cache_dir_ignores_empty_or_relative_xdg(
     home: Path, monkeypatch: pytest.MonkeyPatch, value: str
@@ -171,7 +180,7 @@ def test_store_overwrites_atomically() -> None:
 
 def test_store_serialises_unusual_values() -> None:
     cache.store(KEY, {"path": Path("/x"), "n": 1})
-    assert cache.load(KEY, 60) == {"path": "/x", "n": 1}
+    assert cache.load(KEY, 60) == {"path": str(Path("/x")), "n": 1}  # "\\x" on Windows
 
 
 @posix_only

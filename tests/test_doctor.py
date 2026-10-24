@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from pihello import doctor
+from pihello import config, doctor
 from pihello.cli import UI, build_parser, main
 
 if TYPE_CHECKING:
@@ -28,8 +28,8 @@ def run(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, str, 
 
 
 @pytest.fixture
-def cfg(home: Path) -> Path:
-    path = home / ".config" / "pihello" / "config.toml"
+def cfg() -> Path:
+    path = config.default_config_path()  # in the isolated HOME
     path.parent.mkdir(parents=True)
     return path
 
@@ -276,7 +276,8 @@ def test_seats_exceeded(
 def test_password_command_failure(
     cfg: Path, fake_pihole: FakePihole, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    cfg.write_text(f'url = "{fake_pihole.url}"\npassword_command = "{sys.executable} -c 1"\n')
+    command = f"{sys.executable} -c 1"  # a Windows path needs TOML escapes
+    cfg.write_text(config.dumps({"url": fake_pihole.url, "password_command": command}))
     code, out, _ = run([], capsys)
     assert code == 2
     assert "printed nothing" in out
@@ -286,8 +287,6 @@ def test_password_command_ok(
     cfg: Path, fake_pihole: FakePihole, capsys: pytest.CaptureFixture[str]
 ) -> None:
     command = [sys.executable, "-c", f"print({PASSWORD!r})"]
-    from pihello import config
-
     cfg.write_text(config.dumps({"url": fake_pihole.url, "password_command": command}))
     code, out, _ = run([], capsys)
     assert code == 0, out
@@ -553,6 +552,7 @@ def test_session_verification_failure(
     assert not fake_pihole.active_sessions
 
 
+@pytest.mark.usefixtures("posix_terminal")
 def test_ascii_fallback_and_colors(
     cfg: Path, fake_pihole: FakePihole, monkeypatch: pytest.MonkeyPatch
 ) -> None:

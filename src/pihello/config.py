@@ -410,9 +410,10 @@ def load_file(path: str | os.PathLike[str], *, required: bool = False) -> Config
                 hint="create it with `pihello init`, or check --config / PIHELLO_CONFIG",
             ) from None
         return ConfigFile(path=path, exists=False)
-    except IsADirectoryError:
-        raise ConfigError(f"config path is a directory: {path}") from None
     except OSError as exc:
+        # Windows reports a directory as "Permission denied", not IsADirectoryError
+        if isinstance(exc, IsADirectoryError) or path.is_dir():
+            raise ConfigError(f"config path is a directory: {path}") from None
         raise ConfigError(f"cannot read config file {path}: {exc.strerror or exc}") from None
 
     if sys.version_info >= (3, 11):

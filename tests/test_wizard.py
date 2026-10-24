@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import io
 import os
+import shlex
 import stat
 import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from pihello import wizard
+from pihello import config, wizard
 from pihello.cli import main
 from pihello.errors import ConfigError
 
@@ -138,7 +139,7 @@ def test_prompter_paints_only_with_color() -> None:
         ("/usr/local/bin/fish", "fish"),
         ("/usr/bin/pwsh", "powershell"),
         ("/bin/tcsh", None),
-        ("", None),
+        ("", "powershell" if sys.platform == "win32" else None),  # Windows: PowerShell
     ],
 )
 def test_detect_shell(shell_path: str, expected: str | None) -> None:
@@ -197,6 +198,7 @@ def test_append_snippet(tmp_path: Path) -> None:
     assert wizard.append_snippet(snippet) is True
     text = snippet.path.read_text()
     assert text.startswith("export A=1\n\n# Pi-hole greeting")
+    assert b"\r" not in snippet.path.read_bytes()  # regression: "\r\n" on Windows broke bash
     assert wizard.append_snippet(snippet) is False  # already there
     fresh = wizard.shell_snippet("fish", env={"HOME": str(tmp_path / "new")})
     assert wizard.append_snippet(fresh) is True
@@ -212,8 +214,14 @@ def test_append_snippet(tmp_path: Path) -> None:
 # Full runs against the fake Pi-hole                                          #
 # --------------------------------------------------------------------------- #
 @pytest.fixture
-def cfg(home: Path) -> Path:
-    return home / ".config" / "pihello" / "config.toml"
+def cfg() -> Path:
+    """The default config path in the isolated HOME (``%APPDATA%`` on Windows)."""
+    return config.default_config_path()
+
+
+def tilde(path: Path, home: Path) -> str:
+    """``path`` the way the wizard shows and stores a path inside HOME."""
+    return "~/" + path.relative_to(home).as_posix()
 
 
 def http_only(server: FakePihole) -> FakePihole:
@@ -313,7 +321,7 @@ def test_interactive_retry_password_and_append(
     assert code == 0, out
     assert out.count("Pi-hole rejected the password") == 1
     data = read_config(cfg)
-    assert data["password_file"] == "~/.config/pihello/password"
+    assert data["password_file"] == tilde(cfg.parent / "password", home)
     assert "password" not in data
     password_file = cfg.parent / "password"
     assert password_file.read_text() == PASSWORD + "\n"
@@ -613,8 +621,9 @@ def test_closing_line_names_a_custom_config(
     target = tmp_path / "custom.toml"
     code, out, err = run_init(["--yes", "--no-check", "--config", str(target), "--shell", "bash"])
     assert code == 0, err
-    assert f"Run `pihello --config {target}` to see your greeting" in out
-    assert f"`pihello doctor --config {target}`" in out
+    quoted = shlex.quote(str(target))  # Windows paths need quotes in bash
+    assert f"Run `pihello --config {quoted}` to see your greeting" in out
+    assert f"`pihello doctor --config {quoted}`" in out
 
 
 # -- non-interactive ----------------------------------------------------------
@@ -727,13 +736,14 @@ def test_yes_force_no_check_env_store(
     [
         ("--password-file", "config", {"password": PASSWORD}),
         ("--password-command", "config", {"password": PASSWORD}),
-        ("--password-command", "file", {"password_file": "~/.config/pihello/password"}),
+        ("--password-command", "file", {"password_file": "password in the config directory"}),
         ("--password-file", "env", {}),
     ],
 )
 def test_yes_explicit_store_wins_over_the_password_option(
     run_init: Callable[..., tuple[int, str, str]],
     cfg: Path,
+    home: Path,
     tmp_path: Path,
     *,
     option: str,
@@ -751,6 +761,8 @@ def test_yes_explicit_store_wins_over_the_password_option(
     code, _, err = run_init([*argv, "--shell", "bash"])
     assert code == 0, err
     data = read_config(cfg)
+    if "password_file" in expected:
+        expected = {"password_file": tilde(cfg.parent / "password", home)}
     assert {k: v for k, v in data.items() if k.startswith("password")} == expected
     if store == "file":
         assert (cfg.parent / "password").read_text() == PASSWORD + "\n"
@@ -835,12 +847,12 @@ def test_two_password_options_conflict_in_both_modes(
 def test_yes_with_custom_config_path(
     run_init: Callable[..., tuple[int, str, str]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("SHELL", raising=False)
+    monkeypatch.setenv("SHELL", "/bin/tcsh")  # a shell pihello has no snippet for
     target = tmp_path / "custom.toml"
     code, out, err = run_init(["--yes", "--no-check", "--config", str(target)])
     assert code == 0, err
     assert target.exists()
-    assert f"pihello -q --config {target}" in out
+    assert f"pihello -q --config {shlex.quote(str(target))}" in out
     assert "bash" in out
     assert "powershell" in out
 
@@ -853,7 +865,7 @@ def test_relative_config_path_in_snippet_is_absolute(
     code, out, err = run_init(["--yes", "--no-check", "--config", "my.toml", "--shell", "bash"])
     assert code == 0, err
     assert (tmp_path / "my.toml").exists()
-    assert f"pihello -q --config {tmp_path / 'my.toml'}\n" in out
+    assert f"pihello -q --config {shlex.quote(str(tmp_path / 'my.toml'))}\n" in out
 
 
 def test_snippet_names_the_config_when_pihello_config_points_elsewhere(
@@ -863,7 +875,7 @@ def test_snippet_names_the_config_when_pihello_config_points_elsewhere(
     target = tmp_path / "custom.toml"
     code, out, err = run_init(["--yes", "--no-check", "--config", str(target), "--shell", "zsh"])
     assert code == 0, err
-    assert f"pihello -q --config {target}\n" in out
+    assert f"pihello -q --config {shlex.quote(str(target))}\n" in out
     # ... but not when PIHELLO_CONFIG is the file that was written
     code, out, err = run_init(["--yes", "--no-check", "--force", "--shell", "zsh"])
     assert code == 0, err

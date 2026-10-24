@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from pihello import __version__, cli
+from pihello import __version__, cli, config
 from pihello.cli import COMMANDS, UI, build_parser, main
 from pihello.errors import (
     EXIT_AUTH,
@@ -20,8 +20,6 @@ from pihello.errors import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from helpers.fakepihole import FakePihole
 
 
@@ -134,8 +132,8 @@ def test_unconfigured_points_at_init(capsys: pytest.CaptureFixture[str]) -> None
     ]
 
 
-def test_url_missing_with_config(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    path = home / ".config" / "pihello" / "config.toml"
+def test_url_missing_with_config(capsys: pytest.CaptureFixture[str]) -> None:
+    path = config.default_config_path()
     path.parent.mkdir(parents=True)
     path.write_text("theme = 'default'\n")
     code, _, err = run([], capsys)
@@ -151,8 +149,8 @@ def test_quiet_suppresses_errors_but_not_the_exit_code(
     assert out == err == ""
 
 
-def test_config_errors_are_reported(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    path = home / ".config" / "pihello" / "config.toml"
+def test_config_errors_are_reported(capsys: pytest.CaptureFixture[str]) -> None:
+    path = config.default_config_path()
     path.parent.mkdir(parents=True)
     path.write_text("colour = 'never'\n")
     code, _, err = run(["--demo"], capsys)
@@ -228,6 +226,7 @@ def test_broken_pipe_real_process() -> None:
     assert proc.stdout is not None
     proc.stdout.readline()
     proc.stdout.close()
+    proc.stdout = None  # or communicate() on Windows reads the closed pipe in a thread
     _, err = proc.communicate(timeout=60)
     assert b"Traceback" not in err
     assert b"BrokenPipe" not in err
@@ -260,19 +259,78 @@ def test_broken_pipe_on_the_final_flush(argv: list[str]) -> None:
     assert result.returncode == 0
 
 
-@pytest.mark.parametrize("encoding", ["ascii", "latin-1"])
+@pytest.mark.parametrize(
+    ("encoding", "errors"),
+    [
+        ("ascii", "strict"),  # PYTHONIOENCODING=ascii
+        ("latin-1", "strict"),
+        # Regression: Windows with output redirected to a file or pipe; Python's
+        # default error handler there is surrogateescape, not strict
+        ("cp1252", "surrogateescape"),
+    ],
+)
 def test_stdout_that_cannot_encode_the_output(
-    encoding: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    encoding: str, errors: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # e.g. Windows with output redirected to a file (cp1252), PYTHONIOENCODING=ascii
     raw = io.BytesIO()
-    stream = io.TextIOWrapper(raw, encoding=encoding)
+    stream = io.TextIOWrapper(raw, encoding=encoding, errors=errors)
     monkeypatch.setattr(sys, "stdout", stream)
     assert main(["--demo", "--preset", "default"]) == 0
     assert main(["vars", "--demo", "gravity"]) == 0
+    assert main(["presets", "default", "--source"]) == 0
     stream.flush()
     assert "internal error" not in capsys.readouterr().err
     assert b"Pi-hole" in raw.getvalue()
+    assert b"?" in raw.getvalue()  # e.g. for the "\u2191" of "update available"
+
+
+@pytest.mark.parametrize(("errors", "kept"), [("surrogateescape", True), ("strict", False)])
+def test_utf8_stdout_keeps_its_error_handler(errors: str, kept: bool) -> None:
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", errors=errors)
+    cli._tolerate_unencodable(stream)
+    assert (stream.errors == errors) is kept
+    other = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="backslashreplace")
+    cli._tolerate_unencodable(other)
+    assert other.errors == "backslashreplace"  # chosen explicitly
+
+
+def test_closed_pipe_on_windows(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Regression: on Windows, writing to a pipe whose reader went away raises
+    # OSError(EINVAL) instead of BrokenPipeError; it was an "internal error".
+    import errno
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(cli, "_stdout_is_pipe", lambda: True)
+    closed = OSError(errno.EINVAL, "Invalid argument")
+    monkeypatch.setitem(cli._HANDLERS, "colors", _raise(closed))
+    assert run(["colors"], capsys) == (0, "", "")
+    # ... but only that: EINVAL for a file name, or with stdout not a pipe, is a bug
+    bad_name = OSError(errno.EINVAL, "Invalid argument", "a:b")
+    monkeypatch.setitem(cli._HANDLERS, "colors", _raise(bad_name))
+    assert run(["colors"], capsys)[0] == EXIT_INTERNAL
+    monkeypatch.setitem(cli._HANDLERS, "colors", _raise(closed))
+    monkeypatch.setattr(cli, "_stdout_is_pipe", lambda: False)
+    assert run(["colors"], capsys)[0] == EXIT_INTERNAL
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(cli, "_stdout_is_pipe", lambda: True)
+    assert run(["colors"], capsys)[0] == EXIT_INTERNAL
+
+
+def test_stdout_is_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    read_end, write_end = os.pipe()
+    try:
+        with open(write_end, "w", closefd=False) as pipe:
+            monkeypatch.setattr(sys, "stdout", pipe)
+            assert cli._stdout_is_pipe() is True
+    finally:
+        os.close(read_end)
+        os.close(write_end)
+    monkeypatch.setattr(sys, "stdout", io.StringIO())  # no file descriptor
+    assert cli._stdout_is_pipe() is False
 
 
 def test_options_before_command_are_redispatched(
@@ -297,6 +355,7 @@ class TTY(io.StringIO):
         return True
 
 
+@pytest.mark.usefixtures("posix_terminal")
 def test_ui_colors_respect_no_color(monkeypatch: pytest.MonkeyPatch) -> None:
     stream = TTY()
     UI(stream).error("plain")
@@ -463,7 +522,5 @@ def test_resolve_settings_uses_cli_flags_in_messages(capsys: pytest.CaptureFixtu
 
 
 def test_internal_unknown_cli_setting() -> None:
-    from pihello import config
-
     with pytest.raises(ConfigError, match="internal"):
         config.resolve({"nope": 1}, env={})

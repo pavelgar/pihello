@@ -9,12 +9,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from pihello import cli, demo, presets, sources, themes
+from pihello import cli, config, demo, presets, sources, themes
 from pihello.cli import format_value, lookup, main
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from helpers.fakepihole import FakePihole
 
 PASSWORD = "pihello-test"
@@ -28,8 +26,8 @@ def run(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, str, 
 
 
 @pytest.fixture
-def configured(home: Path, fake_pihole: FakePihole) -> FakePihole:
-    path = home / ".config" / "pihello" / "config.toml"
+def configured(fake_pihole: FakePihole) -> FakePihole:
+    path = config.default_config_path()
     path.parent.mkdir(parents=True)
     path.write_text(f'url = "{fake_pihole.url}"\npassword = "{PASSWORD}"\n')
     path.chmod(0o600)
@@ -138,8 +136,8 @@ def test_theme_preview(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFi
     assert ANSI.search(out)
 
 
-def test_themes_use_configured_preset(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    path = home / ".config" / "pihello" / "config.toml"
+def test_themes_use_configured_preset(capsys: pytest.CaptureFixture[str]) -> None:
+    path = config.default_config_path()
     path.parent.mkdir(parents=True)
     path.write_text("preset = 'classic'\n")
     _, out, _ = run(["themes", "default"], capsys)
@@ -212,6 +210,7 @@ def test_vars_json_tree_and_flat(capsys: pytest.CaptureFixture[str]) -> None:
     assert json.loads(out) == {"queries.total": demo.variables()["queries"]["total"]}
 
 
+@pytest.mark.usefixtures("posix_terminal")
 def test_vars_tty_colors_and_truncation(monkeypatch: pytest.MonkeyPatch) -> None:
     from pihello import terminal
 

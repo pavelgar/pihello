@@ -298,7 +298,8 @@ def test_timeout_on_one_source_is_a_problem(fake_pihole: FakePihole) -> None:
 
 
 def test_every_source_unreachable_raises(fake_pihole: FakePihole) -> None:
-    client = PiholeClient(fake_pihole.url, timeout=1)
+    # Windows retries a refused connection for about 2 s, so leave room for that
+    client = PiholeClient(fake_pihole.url, timeout=5)
     fake_pihole.stop()
     with pytest.raises(ConnectionFailed, match="refused"):
         collect(client, ["queries.total", "blocking", "version"])

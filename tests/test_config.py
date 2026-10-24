@@ -30,18 +30,24 @@ def write(path: Path, text: str, mode: int = 0o600) -> Path:
 
 @pytest.fixture
 def cfg(home: Path) -> Path:
-    """The default config path inside the isolated HOME."""
+    """The default config path inside the isolated HOME.
+
+    For the environments these tests pass to :func:`config.resolve`, which have
+    no ``APPDATA``, so also on Windows.
+    """
     return home / ".config" / "pihello" / "config.toml"
 
 
 # --------------------------------------------------------------------------- #
 # Locating                                                                    #
 # --------------------------------------------------------------------------- #
-def test_default_path_uses_xdg_config_home(home: Path) -> None:
+def test_default_path_uses_xdg_config_home(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "_WINDOWS", False)  # the XDG rules, on every OS
     assert config.default_config_path() == home / ".config" / "pihello" / "config.toml"
 
 
 def test_default_path_ignores_relative_xdg(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "_WINDOWS", False)
     monkeypatch.setenv("XDG_CONFIG_HOME", "relative/dir")
     assert config.default_config_path() == home / ".config" / "pihello" / "config.toml"
 
@@ -79,6 +85,19 @@ def test_missing_explicit_file_is_an_error(tmp_path: Path) -> None:
 def test_directory_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="is a directory"):
         config.load_file(tmp_path)
+
+
+def test_directory_is_an_error_on_windows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: Windows refuses to open a directory with "Permission denied"
+    # (not IsADirectoryError), which was reported as an unreadable file.
+    def read_bytes(self: Path) -> bytes:
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    with pytest.raises(ConfigError, match="config path is a directory"):
+        config.load_file(tmp_path)
+    with pytest.raises(ConfigError, match=r"cannot read config file .*: Permission denied"):
+        config.load_file(tmp_path / "c.toml")
 
 
 def test_unreadable_file(tmp_path: Path) -> None:

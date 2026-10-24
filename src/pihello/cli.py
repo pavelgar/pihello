@@ -1816,15 +1816,52 @@ def _silence_stdout() -> None:
 def _tolerate_unencodable(stream: Any) -> None:
     """Print ``?`` for characters the output encoding lacks instead of crashing.
 
-    E.g. on Windows with the output redirected to a file (cp1252), or with
-    ``PYTHONIOENCODING=ascii``; an explicitly chosen error handler is kept.
+    E.g. on Windows with the output redirected to a file or pipe (cp1252), or
+    with ``PYTHONIOENCODING=ascii``. Python's default error handler is
+    ``strict``, but ``surrogateescape`` on Windows and in the C locale, which
+    doesn't help with ``↑`` in cp1252 either; UTF-8 can encode everything, so
+    ``surrogateescape`` is kept there, and so is any other error handler.
     """
-    if getattr(stream, "errors", None) != "strict":
-        return
+    import codecs  # noqa: PLC0415 - already loaded at startup
     import contextlib  # noqa: PLC0415
 
+    errors = getattr(stream, "errors", None)
+    if errors == "surrogateescape":
+        try:
+            if codecs.lookup(stream.encoding).name == "utf-8":
+                return
+        except (AttributeError, LookupError, TypeError):
+            return
+    elif errors != "strict":
+        return
     with contextlib.suppress(AttributeError, OSError, ValueError):  # exotic streams
         stream.reconfigure(errors="replace")
+
+
+def _stdout_is_pipe() -> bool:
+    import stat  # noqa: PLC0415 - already loaded at startup
+
+    try:
+        return stat.S_ISFIFO(os.fstat(sys.stdout.fileno()).st_mode)
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
+def _is_windows_closed_pipe(exc: BaseException) -> bool:
+    """Whether ``exc`` is Windows' version of :class:`BrokenPipeError`.
+
+    Writing to a pipe whose reader went away (``pihello presets | more`` after
+    quitting ``more``) fails with ``OSError(EINVAL)`` on Windows, not ``EPIPE``.
+    """
+    import errno  # noqa: PLC0415 - already loaded at startup
+
+    return (
+        sys.platform == "win32"
+        and isinstance(exc, OSError)
+        and exc.errno == errno.EINVAL
+        and exc.filename is None  # a write, not e.g. opening a file Windows can't name
+        and _stdout_is_pipe()
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1856,6 +1893,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         ui.error(str(exc), exc.hint, excerpt=getattr(exc, "excerpt", None))
         return exc.exit_code
     except Exception as exc:
+        if _is_windows_closed_pipe(exc):
+            _silence_stdout()
+            return EXIT_OK
         if ui.debug:
             import traceback  # noqa: PLC0415
 

@@ -112,7 +112,9 @@ def test_parser_only_raises_template_error(source: str) -> None:
 @given(text=st.text(max_size=80).filter(lambda t: "\t" not in t and "\r" not in t))
 def test_escaped_text_round_trips(text: str) -> None:
     expected = text[:-1] if text.endswith("\n") else text
-    assert Template.parse(escape(text)).render({}) == expected
+    # A byte order mark at the very start of a template is not content (it is
+    # dropped like in a file), so start the template with something else.
+    assert Template.parse("x" + escape(text)).render({}) == "x" + expected
 
 
 @SETTINGS

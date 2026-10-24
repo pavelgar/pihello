@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from hypothesis import given, settings
@@ -13,6 +13,27 @@ from pihello.errors import TemplateError
 from pihello.template import ColorDepth, RenderOptions, Template, visible_width
 from pihello.template import filters as F  # noqa: N812 - short alias for the module under test
 from pihello.template.filters import FILTERS, Arg, FilterArgError, bind, catalog, to_number, to_text
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+
+@pytest.fixture
+def utc(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Local time is UTC, like in the worked examples in docs/templates.md."""
+    tzset = getattr(time, "tzset", None)
+    if tzset is None:  # Windows has no tzset(): make "local time" UTC directly
+        monkeypatch.setattr(time, "localtime", time.gmtime)
+        yield
+        return
+    monkeypatch.setenv("TZ", "UTC")
+    tzset()
+    try:
+        yield
+    finally:
+        monkeypatch.delenv("TZ")
+        tzset()
+
 
 PLAIN = RenderOptions(color=ColorDepth.NONE, now=1_000_000.0)
 
@@ -221,18 +242,13 @@ def test_ago_defaults_to_current_time() -> None:
     )
 
 
-def test_datetime(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TZ", "UTC")
-    time.tzset()
-    try:
-        assert ev("|datetime", 0) == "1970-01-01 00:00"
-        assert ev('|datetime("%H:%M")', 3600 * 13 + 60 * 7) == "13:07"
-        assert ev("|datetime(%H:%M)", 60) == "00:01"  # ':' inside parentheses belongs to the args
-        assert ev("|datetime", "x") == "?"
-        assert ev("|datetime", 1e20) == "?"
-    finally:
-        monkeypatch.delenv("TZ")
-        time.tzset()
+@pytest.mark.usefixtures("utc")
+def test_datetime() -> None:
+    assert ev("|datetime", 0) == "1970-01-01 00:00"
+    assert ev('|datetime("%H:%M")', 3600 * 13 + 60 * 7) == "13:07"
+    assert ev("|datetime(%H:%M)", 60) == "00:01"  # ':' inside parentheses belongs to the args
+    assert ev("|datetime", "x") == "?"
+    assert ev("|datetime", 1e20) == "?"
 
 
 # --------------------------------------------------------------------------- #
@@ -603,7 +619,8 @@ def test_bind_errors(name: str, args: list[Arg], kwargs: dict[str, Arg], message
     assert info.value.hint
 
 
-def test_catalog_examples_match_the_demo_data(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("utc")
+def test_catalog_examples_match_the_demo_data() -> None:
     """Every documented example renders (strictly) from ``--demo`` data as claimed.
 
     Regression: ``bytes`` claimed 30.9 GiB (the demo has 7.9 GiB), ``datetime``
@@ -611,24 +628,18 @@ def test_catalog_examples_match_the_demo_data(monkeypatch: pytest.MonkeyPatch) -
     """
     from pihello import demo
 
-    monkeypatch.setenv("TZ", "UTC")  # like the worked examples in docs/templates.md
-    time.tzset()
     options = RenderOptions(color=ColorDepth.NONE, strict=True, now=demo.NOW)
     theme = {"good": "green", "bad": "red", "warn": "yellow", "muted": "grey50"}
-    try:
-        for info in catalog():
-            example, arrow, claimed = info.example.partition(" → ")
-            if not example:
-                continue
-            if not example.startswith(("{", "[")):
-                example = f"{{{example}|{info.name}}}"
-            for part in example.split(" or "):
-                text = Template.parse(part).render(demo.variables(), theme=theme, options=options)
-                if arrow:
-                    assert text == claimed, info
-    finally:
-        monkeypatch.delenv("TZ")
-        time.tzset()
+    for info in catalog():
+        example, arrow, claimed = info.example.partition(" → ")
+        if not example:
+            continue
+        if not example.startswith(("{", "[")):
+            example = f"{{{example}|{info.name}}}"
+        for part in example.split(" or "):
+            text = Template.parse(part).render(demo.variables(), theme=theme, options=options)
+            if arrow:
+                assert text == claimed, info
 
 
 def test_datetime_format_validation(monkeypatch: pytest.MonkeyPatch) -> None:

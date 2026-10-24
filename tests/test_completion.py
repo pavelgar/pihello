@@ -10,11 +10,18 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from pihello import completion
+from pihello import completion, config
 from pihello.cli import COMMANDS, build_parser, main
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+#: The tests that run a shell call ``pihello`` through a ``#!/bin/sh`` shim,
+#: which Windows can't execute (and ``bash`` on Windows runners is WSL's launcher).
+posix_shell = pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX shell: the pihello shim is a #!/bin/sh script"
+)
 
 
 @pytest.fixture
@@ -47,8 +54,8 @@ def test_names() -> None:
         completion.names("bogus")
 
 
-def test_profile_names_from_config(home: Path) -> None:
-    path = home / ".config" / "pihello" / "config.toml"
+def test_profile_names_from_config() -> None:
+    path = config.default_config_path()
     path.parent.mkdir(parents=True)
     path.write_text("[profiles.zeta]\nurl='a'\n[profiles.alpha]\nurl='b'\n")
     assert completion.names("profiles") == ["alpha", "zeta"]
@@ -102,6 +109,7 @@ def test_scripts_cover_every_command_and_flag(
     assert "--names" not in text.replace("completion --names", "")
 
 
+@posix_shell
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not installed")
 def test_bash_script_is_valid_and_completes(shim: Path, tmp_path: Path) -> None:
     script = tmp_path / "pihello.bash"
@@ -128,6 +136,7 @@ def test_bash_script_is_valid_and_completes(shim: Path, tmp_path: Path) -> None:
     assert complete("pihello", "--url", "") == []
 
 
+@posix_shell
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not installed")
 def test_bash_option_candidates_are_separate_words(shim: Path, tmp_path: Path) -> None:
     # `pihello doctor --p<TAB>` must offer four options, not one candidate
@@ -142,6 +151,7 @@ def test_bash_option_candidates_are_separate_words(shim: Path, tmp_path: Path) -
     assert output == "<--password-file><--password-command><--password-stdin><--profile>"
 
 
+@posix_shell
 @pytest.mark.skipif(shutil.which("fish") is None, reason="fish not installed")
 def test_fish_script_is_valid_and_completes(shim: Path, tmp_path: Path) -> None:
     script = tmp_path / "pihello.fish"
@@ -161,6 +171,7 @@ def test_fish_script_is_valid_and_completes(shim: Path, tmp_path: Path) -> None:
     assert "-ts" in complete("pihello -t")
 
 
+@posix_shell
 @pytest.mark.skipif(shutil.which("zsh") is None, reason="zsh not installed")
 def test_zsh_script_is_valid(shim: Path, tmp_path: Path) -> None:  # pragma: no cover
     script = tmp_path / "_pihello"
@@ -182,6 +193,7 @@ def test_install_instructions_create_the_directory(capsys: pytest.CaptureFixture
     assert "mkdir -p ~/.config/fish/completions" in capsys.readouterr().out
 
 
+@posix_shell
 @pytest.mark.skipif(shutil.which("fish") is None, reason="fish not installed")
 def test_fish_shows_preset_and_theme_descriptions(shim: Path, tmp_path: Path) -> None:
     from pihello import presets, themes

@@ -125,6 +125,7 @@ def test_invalid_mode() -> None:
         (TTY, {"TERM": "xterm"}, C256),
     ],
 )
+@pytest.mark.usefixtures("posix_terminal")
 def test_auto(stream: Any, env: dict[str, str], depth: ColorDepth) -> None:
     assert detect("auto", stream, **env) == depth
 
@@ -139,6 +140,7 @@ def test_auto(stream: Any, env: dict[str, str], depth: ColorDepth) -> None:
         ({"TERM": "linux"}, C16),
     ],
 )
+@pytest.mark.usefixtures("posix_terminal")
 def test_always_is_never_none(env: dict[str, str], depth: ColorDepth) -> None:
     assert detect("always", PIPE, **env) == depth
 

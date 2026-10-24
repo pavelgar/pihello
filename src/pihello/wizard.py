@@ -340,7 +340,8 @@ def append_snippet(snippet: ShellSnippet) -> bool:
         if not current or current.endswith("\n\n")
         else ("\n" if current.endswith("\n") else "\n\n")
     )
-    with snippet.path.open("a", encoding="utf-8") as handle:
+    # "\n" also on Windows: bash and zsh (Git Bash, MSYS2) choke on "\r\n" line endings
+    with snippet.path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(separator + snippet.text)
     return True
 
