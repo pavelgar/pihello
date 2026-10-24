@@ -13,6 +13,7 @@ from pihello import __version__, cli, config
 from pihello.cli import COMMANDS, UI, build_parser, main
 from pihello.errors import (
     EXIT_AUTH,
+    EXIT_CONNECTION,
     EXIT_INTERNAL,
     EXIT_USAGE,
     AuthenticationError,
@@ -100,6 +101,8 @@ def test_no_abbreviations(capsys: pytest.CaptureFixture[str]) -> None:
         (["-H", "x"], "whole number"),
         (["--timeout", "0"], "must be > 0"),
         (["--timeout", "nan"], "must be a number"),
+        (["--timeout", "1e300"], "at most 3600"),
+        (["--timeout", "3600.5"], "at most 3600"),
         (["--cache", "soon"], "number of seconds"),
         (["--style", "nonsense"], "NAME=WORDS"),
         (["--color", "pink"], "invalid choice"),
@@ -111,6 +114,13 @@ def test_argument_validation(
     code, _, err = run(argv, capsys)
     assert code == EXIT_USAGE
     assert message in err
+
+
+def test_timeout_limits() -> None:
+    assert build_parser().parse_args(["--timeout", "3600"]).timeout == 3600
+    assert build_parser("doctor").parse_args(["--timeout", "0.5"]).timeout == 0.5
+    with pytest.raises(SystemExit):
+        build_parser("vars").parse_args(["--timeout", "1e300"])
 
 
 def test_width_type_accepts_auto() -> None:
@@ -141,12 +151,53 @@ def test_url_missing_with_config(capsys: pytest.CaptureFixture[str]) -> None:
     assert f'add url = "http://pi.hole" to {path}' in err
 
 
-def test_quiet_suppresses_errors_but_not_the_exit_code(
+def test_quiet_suppresses_runtime_errors_but_not_the_exit_code(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    code, out, err = run(["-q"], capsys)
-    assert code == EXIT_USAGE
+    code, out, err = run(["-q", "--url", "http://127.0.0.1:9", "--timeout", "1"], capsys)
+    assert code == EXIT_CONNECTION
     assert out == err == ""
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["--demo", "--preset", "compcat"], "pihello: unknown preset 'compcat'"),
+        (["--demo", "--style", "bogus=red"], "pihello: unknown style name 'bogus'"),
+        (["-k", "--ca-cert", "/missing"], "--insecure and --ca-cert cannot be used together"),
+        (["--demo", "-e", "{unclosed"], "unclosed expression"),
+        ([], "no Pi-hole address configured"),
+        (["shwo"], "unknown command 'shwo'"),
+    ],
+)
+def test_quiet_still_prints_usage_config_and_template_errors(
+    argv: list[str], message: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # -q keeps an offline Pi-hole out of new shells; a mistake (exit 2) still shows.
+    code, out, err = run(["-q", *argv], capsys)
+    assert code == EXIT_USAGE
+    assert out == ""
+    assert message in err
+    assert "hint:" in err or "--ca-cert" in message
+
+
+def test_quiet_still_hides_warnings(capsys: pytest.CaptureFixture[str]) -> None:
+    # without -q: "a password on the command line leaks into shell history"
+    assert run(["-q", "pi.lan", "PASSWORD", "--demo", "-e", "x"], capsys) == (0, "x\n", "")
+
+
+def test_quiet_hides_a_failing_password_command(capsys: pytest.CaptureFixture[str]) -> None:
+    # A password_command that fails, e.g. a locked password manager, is a runtime
+    # condition like an offline Pi-hole: -q keeps it out of new shells.
+    base = ["-q", "-u", "http://127.0.0.1:9", "-e", "{queries.total}"]
+    failing = f'{sys.executable} -c "import sys; sys.exit(1)"'
+    assert run([*base, "--password-command", failing], capsys) == (EXIT_USAGE, "", "")
+    silent = f'{sys.executable} -c "pass"'
+    assert run([*base, "--password-command", silent], capsys) == (EXIT_USAGE, "", "")
+    # A program that isn't installed is a setup mistake and still shows.
+    code, _, err = run([*base, "--password-command", "no-such-password-manager-xyz"], capsys)
+    assert code == EXIT_USAGE
+    assert "password_command not found" in err
 
 
 def test_config_errors_are_reported(capsys: pytest.CaptureFixture[str]) -> None:
@@ -419,6 +470,31 @@ def test_ui_redacts_secrets_and_quiet() -> None:
     ui.error("silent")
     ui.warn("silent")
     assert "silent" not in stream.getvalue()
+
+
+def test_ui_messages_never_carry_terminal_controls() -> None:
+    # Messages quote Pi-hole data (error messages, versions, names): an escape
+    # sequence or a bidi override in there must not reach the terminal.
+    import logging
+
+    evil = "bad\x1b]0;owned\x07\x1b[2J\u009b31m\u202edata\r"
+    stream = io.StringIO()
+    ui = UI(stream)
+    ui.error(evil, hint=evil, excerpt=evil)
+    ui.warn(evil)
+    ui.enable_debug()
+    try:
+        ui.log(evil)
+        logging.getLogger("pihello.client").debug("got %s", evil)
+    finally:
+        ui.close()
+    text = stream.getvalue()
+    assert text.count("bad") == 6
+    for control in ("\x1b", "\x07", "\u009b", "\u202e", "\r"):
+        assert control not in text, repr(control)
+    plain = io.StringIO()
+    UI(plain).error("tab\there", excerpt="1 | a\n  | ^")
+    assert plain.getvalue() == "pihello: tab\there\n    1 | a\n      | ^\n"
 
 
 def test_debug_logging_is_redacted_and_detached() -> None:

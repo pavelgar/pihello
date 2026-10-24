@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TextIO
 
-from pihello.errors import ConfigError
+from pihello.errors import ConfigError, PasswordUnavailable
 
 __all__ = [
     "COLOR_MODES",
@@ -44,6 +44,7 @@ __all__ = [
     "ENV_VARS",
     "KEYS",
     "MAX_TAB_SIZE",
+    "MAX_TIMEOUT",
     "PASSWORD_COMMAND_TIMEOUT",
     "ConfigFile",
     "Credential",
@@ -135,9 +136,13 @@ def _check_tab_size(key: str, value: Any) -> int:
     return int(value)
 
 
-def _check_positive_number(key: str, value: Any) -> float:
-    if not _is_number(value) or value <= 0:
-        raise _type_error(key, value, "a number of seconds > 0")
+#: Largest accepted ``timeout`` in seconds (sockets reject absurd values).
+MAX_TIMEOUT = 3600.0  # same as pihello.client.MAX_TIMEOUT (tested); config never imports the client
+
+
+def _check_timeout(key: str, value: Any) -> float:
+    if not _is_number(value) or not 0 < value <= MAX_TIMEOUT:
+        raise _type_error(key, value, f"a number of seconds > 0 and at most {MAX_TIMEOUT:g}")
     return float(value)
 
 
@@ -217,7 +222,7 @@ KEYS: dict[str, KeySpec] = {
     "password_file": KeySpec(_check_nonempty_str, "file whose first line is the password"),
     "password_command": KeySpec(_check_command, "command that prints the password"),
     "verify_tls": KeySpec(_check_verify, "verify HTTPS certificates: true, false or CA path"),
-    "timeout": KeySpec(_check_positive_number, "network timeout in seconds"),
+    "timeout": KeySpec(_check_timeout, "network timeout in seconds (at most 3600)"),
     "preset": KeySpec(_check_nonempty_str, "built-in template name"),
     "template": KeySpec(_check_nonempty_str, "path of a template file"),
     "theme": KeySpec(_check_nonempty_str, "color theme name"),
@@ -484,8 +489,7 @@ class Credential:
         if self.kind == "file":
             return f"password_file {self.resolved_path()}"
         if self.kind == "command":
-            shown = self.value if isinstance(self.value, str) else " ".join(self.value)
-            return f"password_command {shown!r}"
+            return f"password_command ({_command_summary(self.value)})"
         return "standard input"
 
     def resolved_path(self) -> Path:
@@ -538,6 +542,40 @@ def _needs_shell(command: str) -> bool:
     return any(ch in _SHELL_CHARS for ch in command)
 
 
+_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _command_program(command: str | Sequence[str]) -> tuple[str, bool]:
+    """The program a ``password_command`` runs, as written, and whether it has arguments.
+
+    For messages only, so it works the same on every OS: a leading quoted word
+    (``"C:\\Program Files\\…\\bw.exe"``) is one word, and ``NAME=value``
+    prefixes of shell commands are skipped (they may hold a token).
+    """
+    if not isinstance(command, str):
+        return (command[0] if command else ""), len(command) > 1
+    words: list[str] = []
+    rest = command.strip()
+    while rest and len(words) < 2:
+        end = rest.find(rest[0], 1) if rest[0] in "\"'" else -1
+        if end > 0:
+            word, rest = rest[1:end], rest[end + 1 :]
+        else:
+            word, *tail = re.split(r"\s+", rest, maxsplit=1)
+            rest = tail[0] if tail else ""
+        rest = rest.lstrip()
+        if words or not _ASSIGNMENT.match(word):
+            words.append(word)
+    return (words[0] if words else ""), len(words) > 1
+
+
+def _command_summary(command: str | Sequence[str]) -> str:
+    """``bw …``: the program's file name, without the arguments (they may be secret)."""
+    program, has_args = _command_program(command)
+    name = re.split(r"[\\/]", program)[-1] or program or "?"
+    return f"{name} …" if has_args else name
+
+
 def run_password_command(
     command: str | Sequence[str], *, timeout: float = PASSWORD_COMMAND_TIMEOUT
 ) -> str:
@@ -546,30 +584,36 @@ def run_password_command(
     A list/tuple is executed directly. A string is split like a POSIX shell
     would (``shlex``) and executed directly too, *unless* it contains shell
     syntax (pipes, redirections, ``$VAR``, ``~``, globs, ``;`` …), in which case
-    it is run through ``/bin/sh -c`` (``cmd /c`` on Windows). The command
-    inherits stdin (so pinentry/TTY prompts work); stdout and stderr are
-    captured. It is killed after ``timeout`` seconds.
+    it is run through ``/bin/sh -c`` (``cmd /c`` on Windows). On Windows a
+    string is handed to ``CreateProcess`` unchanged, which splits it by the
+    Windows rules (``"C:\\Program Files\\…\\bw.exe" get password pihole``).
+    The command inherits stdin (so pinentry/TTY prompts work); stdout and
+    stderr are captured. It is killed after ``timeout`` seconds.
+
+    Error messages name only the program, never the arguments: they may hold a
+    secret (``--session TOKEN``), and ``pihello doctor`` output gets shared.
     """
     import shlex  # noqa: PLC0415
     import subprocess  # noqa: PLC0415
 
     shell = False
     argv: str | list[str]
+    shown = _command_summary(command)
     if isinstance(command, str):
-        shown = command
-        if _needs_shell(command):
-            shell = True
+        if not command.strip():
+            raise ConfigError("password_command is empty")
+        if _needs_shell(command) or _WINDOWS:
+            shell = _needs_shell(command)
             argv = command
         else:
             try:
-                argv = shlex.split(command, posix=os.name != "nt")
+                argv = shlex.split(command)
             except ValueError as exc:
-                raise ConfigError(f"password_command {command!r}: {exc}") from None
+                raise ConfigError(f"password_command ({shown}): {exc}") from None
             if not argv:
                 raise ConfigError("password_command is empty")
     else:
         argv = list(command)
-        shown = shlex.join(argv)
     try:
         result = subprocess.run(
             argv,
@@ -580,27 +624,27 @@ def run_password_command(
         )
     except FileNotFoundError:
         raise ConfigError(
-            f"password_command not found: {shown!r}",
+            f"password_command not found: {_command_program(command)[0]!r}",
             hint="use the full path of the program, or check that it is installed",
         ) from None
     except subprocess.TimeoutExpired:
-        raise ConfigError(
-            f"password_command timed out after {timeout:g}s: {shown!r}",
+        raise PasswordUnavailable(
+            f"password_command ({shown}) timed out after {timeout:g}s",
             hint="does it wait for input? It must print the password and exit",
         ) from None
     except OSError as exc:
-        raise ConfigError(f"cannot run password_command {shown!r}: {exc}") from None
+        raise ConfigError(f"cannot run password_command ({shown}): {exc}") from None
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", "replace").strip().splitlines()
         reason = f": {detail[-1]}" if detail else ""
-        raise ConfigError(
-            f"password_command failed with exit status {result.returncode}{reason}",
-            hint=f"try running it yourself: {shown}",
+        raise PasswordUnavailable(
+            f"password_command ({shown}) failed with exit status {result.returncode}{reason}",
+            hint="run it yourself to see what's wrong",
         )
     output = result.stdout.decode("utf-8", "replace")
     password = output.splitlines()[0].strip() if output.strip() else ""
     if not password:
-        raise ConfigError(f"password_command printed nothing: {shown!r}")
+        raise PasswordUnavailable(f"password_command ({shown}) printed nothing")
     return password
 
 

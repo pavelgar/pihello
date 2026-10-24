@@ -865,6 +865,37 @@ def test_catalog_list_items_have_container_entries() -> None:
                 assert types.get(container) == "list", f"{container} (list) missing for {path}"
 
 
+def _ftl_version(fixture: str) -> tuple[int, int, int] | None:
+    body = load_fixture(fixture)["responses"]["GET /api/info/version"]["body"]
+    match = re.fullmatch(r"v(\d+)\.(\d+)(?:\.(\d+))?", body["version"]["ftl"]["local"]["version"])
+    return None if match is None else (int(match[1]), int(match[2]), int(match[3] or 0))
+
+
+def test_catalog_version_notes_match_the_recordings() -> None:
+    """The FTL versions quoted in descriptions are the ones the container recordings show
+    (docs/compatibility.md): sensors appear in containers from v6.7.1 (v6.7.0 had none),
+    and info/database.queries counts the in-memory database since v6.4 (with queries_disk)."""
+    by_path = {info.path: info.description for info in catalog()}
+    recorded = []
+    for fixture in available_fixtures():
+        version = _ftl_version(fixture)
+        if version is not None:  # the first v6 image reports a development version
+            responses = load_fixture(fixture)["responses"]
+            sensors = responses["GET /api/info/sensors"]["body"]["sensors"]["list"]
+            database = responses["GET /api/info/database"]["body"]
+            recorded.append((version, bool(sensors), "queries_disk" in database))
+    recorded.sort()
+    last_without = ".".join(map(str, max(v for v, found, _ in recorded if not found)))
+    first_with = ".".join(map(str, min(v for v, found, _ in recorded if found)))
+    assert f"FTL v{last_without} or older" in by_path["sensors.list"]
+    assert f"before FTL v{first_with}" in by_path["sensors.cpu_temp"]
+    major, minor, _ = min(v for v, _, has_disk in recorded if has_disk)
+    # not "(FTL v6.4+)": that marks fields that only exist from that version on
+    assert f"before FTL v{major}.{minor}" in by_path["database.queries"]
+    assert "in-memory" in by_path["database.queries"]
+    assert "on-disk" in by_path["database.queries"]
+
+
 def test_catalog_documents_units() -> None:
     by_path = {info.path: info for info in catalog()}
     assert "KiB" in by_path["system.memory.ram.total"].description
@@ -878,3 +909,27 @@ def test_catalog_documents_units() -> None:
     assert by_path["version.docker.update"].source == "derived"
     assert by_path["version.core.local.version"].description.startswith("Installed Pi-hole Core")
     assert by_path["now"].source == "builtin"
+
+
+@pytest.mark.parametrize("workers", [1, 6])
+def test_unreachable_pihole_costs_one_timeout_not_one_per_wave(
+    fake_pihole: FakePihole, workers: int
+) -> None:
+    # A Pi-hole that stops answering: with 17 sources and 6 workers, waiting for
+    # every wave would take three timeouts; unstarted sources are skipped instead.
+    import time
+
+    from pihello import sources as sources_module
+
+    for source in sources_module.plan_all():
+        fake_pihole.fail(source.endpoint.split("?")[0], delay=5)
+    with PiholeClient(fake_pihole.url, PASSWORD, timeout=0.5) as client:
+        started = time.monotonic()
+        variables, problems = fetch(client, plan_all(), max_workers=workers)
+        elapsed = time.monotonic() - started
+    # one timeout plus slack; waiting per wave would take >= 1.5 s (17 sources,
+    # 6 workers), and one after another 8.5 s
+    assert elapsed < 1.0, elapsed
+    assert len(problems) == len(plan_all())
+    assert all(isinstance(problem.error, ConnectionFailed) for problem in problems)
+    assert not variables

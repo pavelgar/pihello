@@ -251,6 +251,13 @@ def test_tag_items_for_dynamic_tags() -> None:
     assert tag.items[2][2:] == (1, 14)
 
 
+def test_tag_theme_refs_are_bare_words_only() -> None:
+    # Regression: '@' inside a quoted argument was taken for a theme reference.
+    (tag, _) = nodes('[{x|eq("@home")|if(@good, \'bold @bad\')} {y|map("@a"=@warn, _=@b)}]x')
+    assert isinstance(tag, Tag)
+    assert tag.theme_refs == (("good", 1, 2), ("warn", 1, 41), ("b", 1, 41))
+
+
 def test_text_nodes_keep_raw_escapes_and_plain_variant() -> None:
     (node,) = nodes("a\x1b[31mb\x1b]8;;x\x1b\\c\x1b")
     assert isinstance(node, Text)

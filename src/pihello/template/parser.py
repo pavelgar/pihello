@@ -58,15 +58,27 @@ NEWLINE = _Newline()
 
 
 class FilterCall:
-    """One ``| name(args)`` step of an expression with its bound arguments."""
+    """One ``| name(args)`` step of an expression with its bound arguments.
 
-    __slots__ = ("args", "column", "line", "spec")
+    ``theme_refs`` are the names (without ``@``) of the bare-word ``@name``
+    arguments; a quoted ``"@name"`` is plain text.
+    """
 
-    def __init__(self, spec: FilterSpec, args: tuple[Any, ...], line: int, column: int) -> None:
+    __slots__ = ("args", "column", "line", "spec", "theme_refs")
+
+    def __init__(
+        self,
+        spec: FilterSpec,
+        args: tuple[Any, ...],
+        line: int,
+        column: int,
+        theme_refs: tuple[str, ...] = (),
+    ) -> None:
         self.spec = spec
         self.args = args
         self.line = line
         self.column = column
+        self.theme_refs = theme_refs
 
     def __repr__(self) -> str:
         return f"FilterCall({self.spec.name}{self.args!r})"
@@ -131,10 +143,10 @@ class Tag:
     word (``payload`` is the word), a theme reference (the name without ``@``)
     or a dynamic word (a list of literal strings and :class:`Expr` pieces).
 
-    ``theme_refs`` lists the ``(name, line, column)`` of every ``@name`` written
-    as a literal inside the tag's expressions (e.g. ``map(enabled=@good)``):
-    they are template-authored, so they are validated on every render even
-    when the data selects another branch.
+    ``theme_refs`` lists the ``(name, line, column)`` of every bare-word
+    ``@name`` filter argument inside the tag's expressions (e.g.
+    ``map(enabled=@good)``): they are template-authored, so they are validated
+    on every render even when the data selects another branch.
     """
 
     __slots__ = ("column", "items", "line", "source", "style", "theme_refs")
@@ -153,7 +165,9 @@ class Tag:
                 for piece in payload:
                     if isinstance(piece, Expr):
                         refs.extend(
-                            (name, item_line, item_column) for name in _authored_refs(piece)
+                            (name, item_line, item_column)
+                            for call in piece.filters
+                            for name in call.theme_refs
                         )
         self.theme_refs = tuple(dict.fromkeys(refs))
 
@@ -162,21 +176,6 @@ class Tag:
 
 
 Node = Text | _Newline | Tag | Expr
-
-
-def _authored_refs(expr: Expr) -> list[str]:
-    """Theme names (without ``@``) written literally in ``expr``'s head or filter arguments."""
-    values: list[Any] = [expr.literal]
-    for call in expr.filters:
-        for arg in call.args:
-            values.extend(arg.values() if isinstance(arg, dict) else (arg,))
-    return [
-        word[1:]
-        for value in values
-        if isinstance(value, str) and "@" in value
-        for word in split_words(value)
-        if word.startswith("@") and len(word) > 1
-    ]
 
 
 _KEY_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_%-")
@@ -679,7 +678,12 @@ class _Parser:
         except _filters.FilterArgError as error:
             position = error.arg.position if error.arg is not None else (line, column)
             raise self.error(error.message, position[1], error.hint, line=position[0]) from None
-        return FilterCall(spec, bound, line, column), index
+        refs = tuple(
+            arg.raw[1:]
+            for arg in (*args, *kwargs.values())
+            if not arg.quoted and arg.raw.startswith("@") and len(arg.raw) > 1
+        )
+        return FilterCall(spec, bound, line, column, refs), index
 
     def arguments(
         self, open_index: int, args: list[_filters.Arg], kwargs: dict[str, _filters.Arg]

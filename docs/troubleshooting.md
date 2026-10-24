@@ -20,7 +20,7 @@ See [`pihello doctor`](commands.md#pihello-doctor) for a sample run.
 
 ### Nothing appears in new shells
 
-That's `-q` hiding an error.
+That's `-q` hiding an error: it hides connection, login and API errors and a failing `password_command` (a locked password manager), though not mistakes in the config file or a template.
 Run `pihello` without `-q` to see it.
 
 If `pihello` on its own works, the startup snippet isn't running or can't find pihello:
@@ -43,7 +43,7 @@ When the Pi-hole is online, a [cache](configuration.md#caching) (`cache_ttl = 30
 Since FTL v6.1, Pi-hole's web server answers about 40 ms late on every reused (keep-alive) connection, because it leaves Nagle's algorithm on (no `TCP_NODELAY`).
 A reverse proxy that keeps its connections to Pi-hole open, like Caddy does by default, adds that delay to every API request, so a greeting takes up to twice as long.
 It slows down Pi-hole's own web interface too.
-`pihello --debug` shows it: every request takes 40 ms or more, even `info/login`.
+`pihello --debug` shows it: every API request takes 40 ms or more, even the login and the logout (`POST` and `DELETE /api/auth`).
 
 The best fix is on the Pi-hole, because it helps every proxy and client: set the web server option `tcp_nodelay=1`.
 Pi-hole restarts its FTL service by itself after the change, which takes about a second.

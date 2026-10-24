@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -30,6 +31,7 @@ from pihello.errors import (
     AuthenticationError,
     ConfigError,
     ConnectionFailed,
+    PasswordUnavailable,
     PiHelloError,
     PiholeError,
     TooManySessions,
@@ -82,7 +84,7 @@ _MAIN_EPILOG = """\
 Examples:
   pihello init                       set everything up interactively
   pihello                            show the greeting using your config
-  pihello -q                         for shell startup files: never print errors
+  pihello -q                         for shell startup files: no errors when offline
   pihello --preset compact -T nord   another built-in template and theme
   pihello -u https://pi.hole -k      one-off, with a self-signed certificate
   pihello -e '{queries.percent_blocked|percent} blocked'
@@ -98,6 +100,44 @@ PIHELLO_PRESET, PIHELLO_THEME, PIHELLO_PROFILE, PIHELLO_CONFIG, NO_COLOR.
 Exit status: 0 ok, 2 usage/config/template, 3 unreachable, 4 authentication,
 5 unexpected API response, 1 internal error.
 """
+
+
+# --------------------------------------------------------------------------- #
+# Untrusted text                                                              #
+# --------------------------------------------------------------------------- #
+#: What a terminal acts on, or what reorders text: C0 controls except newline
+#: and tab (ESC starts escape sequences), DEL, C1 controls (U+009B is a
+#: one-character CSI), bidi marks, embeddings, overrides and isolates, and the
+#: line and paragraph separators. Any LAN client can put them into Pi-hole's
+#: data (a DNS query for a crafted name), and messages quote that data.
+_UNSAFE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200e\u200f\u2028-\u202e\u2066-\u2069]")
+#: The same without C0 controls, which JSON escapes by itself.
+_JSON_UNSAFE = re.compile(r"[\x7f-\x9f\u200e\u200f\u2028-\u202e\u2066-\u2069]")
+
+
+def _sanitize(text: str) -> str:
+    """``text``, which may quote Pi-hole data, made safe to print on a terminal.
+
+    Uses the template engine's :func:`~pihello.template.sanitize` (escape
+    sequences go whole), but only imports it when there is something to remove.
+    """
+    if not _UNSAFE.search(text):
+        return text
+    from pihello.template import sanitize  # noqa: PLC0415 - rarely needed
+
+    return _UNSAFE.sub("", sanitize(text))
+
+
+def _json_text(data: Any) -> str:
+    """``data`` as indented JSON, with C1 and bidi controls escaped (``\\u009b``).
+
+    Still valid JSON for the same data; ``ensure_ascii`` would also escape every
+    printable non-ASCII character.
+    """
+    import json  # noqa: PLC0415
+
+    text = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    return _JSON_UNSAFE.sub(lambda match: f"\\u{ord(match.group()):04x}", text)
 
 
 # --------------------------------------------------------------------------- #
@@ -123,6 +163,8 @@ class UI:
 
     Honours ``--quiet`` and NO_COLOR, and redacts every registered secret, so a
     password can never leak through an error message or a debug log line.
+    Messages may quote Pi-hole data, so terminal controls are removed from them
+    (:meth:`clean`).
     """
 
     def __init__(self, stderr: TextIO | None = None) -> None:
@@ -151,6 +193,10 @@ class UI:
                 text = text.replace(secret, "********")
         return text
 
+    def clean(self, text: str) -> str:
+        """``text`` with secrets redacted, then escape sequences and other controls removed."""
+        return _sanitize(self.redact(text))
+
     def add_secret(self, secret: str | None) -> None:
         """Register a value that must never be printed."""
         if secret:
@@ -168,21 +214,21 @@ class UI:
         """``pihello: message`` (+ an indented source ``excerpt`` and ``hint: …``), unless quiet."""
         if self.quiet:
             return
-        self._write(f"{self.paint('pihello:', '1;31')} {message}")
+        self._write(f"{self.paint('pihello:', '1;31')} {self.clean(message)}")
         if excerpt:
-            self._write("\n".join("    " + line for line in excerpt.splitlines()))
+            self._write("\n".join("    " + line for line in self.clean(excerpt).splitlines()))
         if hint:
-            self._write(f"{self.paint('hint:', '36')} {hint}")
+            self._write(f"{self.paint('hint:', '36')} {self.clean(hint)}")
 
     def warn(self, message: str) -> None:
         """``pihello: warning: message``, unless quiet."""
         if not self.quiet:
-            self._write(f"{self.paint('pihello: warning:', '1;33')} {message}")
+            self._write(f"{self.paint('pihello: warning:', '1;33')} {self.clean(message)}")
 
     def log(self, message: str) -> None:
         """A debug line (only with ``--debug``)."""
         if self.debug:
-            self._write(self.paint(f"pihello: debug: {message}", "2"))
+            self._write(self.paint(f"pihello: debug: {self.clean(message)}", "2"))
 
     # -- logging -----------------------------------------------------------
     def enable_debug(self) -> None:
@@ -194,7 +240,7 @@ class UI:
 
         class _Redact(logging.Filter):
             def filter(self, record: logging.LogRecord) -> bool:
-                record.msg = ui.redact(record.getMessage())
+                record.msg = ui.clean(record.getMessage())
                 record.args = ()
                 return True
 
@@ -280,6 +326,15 @@ def _positive_float(text: str) -> float:
     return value
 
 
+def _timeout_type(text: str) -> float:
+    from pihello.config import MAX_TIMEOUT  # noqa: PLC0415
+
+    value = _positive_float(text)
+    if value > MAX_TIMEOUT:
+        raise argparse.ArgumentTypeError(f"must be at most {MAX_TIMEOUT:g} seconds, got {text!r}")
+    return value
+
+
 def _width_type(text: str) -> int | str:
     if text.strip().lower() == "auto":
         return "auto"
@@ -314,7 +369,12 @@ def _add_common(group: Any, *, color: bool = True) -> None:
     )
     if color:
         _add_color(group)
-    group.add_argument("-q", "--quiet", action="store_true", help="do not print errors or warnings")
+    group.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="print no warnings, and no errors except mistakes (exit status 2)",
+    )
     group.add_argument(
         "--debug", action="store_true", help="log HTTP requests and timings to stderr"
     )
@@ -364,7 +424,10 @@ def _add_connection(group: Any, *, url: bool = True) -> None:
         "--ca-cert", metavar="PATH", help="verify HTTPS against this CA / self-signed cert"
     )
     group.add_argument(
-        "--timeout", type=_positive_float, metavar="SECONDS", help="network timeout (default: 3)"
+        "--timeout",
+        type=_timeout_type,
+        metavar="SECONDS",
+        help="time limit for each request to Pi-hole (default: 3, at most 3600)",
     )
 
 
@@ -488,7 +551,7 @@ def _show_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="print no errors or warnings; the exit status still tells",
+        help="print no warnings, and no errors except mistakes (exit status 2)",
     )
     beh.add_argument(
         "--debug", action="store_true", help="log HTTP requests, timings and problems to stderr"
@@ -811,11 +874,16 @@ _ARG_FLAGS = {
 
 
 def _apply_https(url: str) -> str:
-    if url.startswith("http://"):
-        return "https://" + url[len("http://") :]
-    if "://" not in url:
-        return "https://" + url
-    return url
+    """``-p``: ``url`` normalised, with its scheme forced to ``https``.
+
+    Normalising first catches every spelling of ``http://`` (``HTTP://``,
+    leading spaces), so the password is never sent unencrypted.
+    """
+    from urllib.parse import urlsplit, urlunsplit  # noqa: PLC0415
+
+    from pihello.client import normalize_url  # noqa: PLC0415 - cheap: no urllib.request/ssl
+
+    return urlunsplit(urlsplit(normalize_url(url))._replace(scheme="https"))
 
 
 def cli_overrides(args: argparse.Namespace, ui: UI) -> dict[str, Any]:
@@ -1048,12 +1116,21 @@ def report_problems(problems: Sequence[FetchProblem], ui: UI, *, always: bool = 
 
 
 def _fatal_problem(planned: int, problems: Sequence[FetchProblem]) -> PiholeError | None:
-    """When *every* source failed for a real reason, that is an error, not a gap."""
-    from pihello.errors import EndpointNotFound  # noqa: PLC0415
+    """The error to raise when the Pi-hole couldn't be reached for *any* source.
 
-    real = [p.error for p in problems if not isinstance(p.error, EndpointNotFound)]
-    if planned and len(problems) >= planned and real:
-        return real[0]
+    An :class:`~pihello.errors.APIError` (404, or e.g. ``500 internal_error``
+    while FTL starts up) means the Pi-hole answered: that source's values are
+    unavailable, even when it was the only one. Authentication errors never get
+    here (:func:`pihello.sources.fetch` raises them).
+    """
+    from pihello.errors import APIError  # noqa: PLC0415
+
+    if (
+        planned
+        and len(problems) >= planned
+        and not any(isinstance(p.error, APIError) for p in problems)
+    ):
+        return problems[0].error
     return None
 
 
@@ -1357,7 +1434,7 @@ def _watch(show: _Show, interval: float) -> int:
         if variables is not None:
             parts.append(show.render(variables, now, height=body_height if tty else None))
         if error is not None:
-            message = ui.redact(f"{error}")
+            message = ui.clean(f"{error}")
             parts.append(paint(f"⚠ {message} — retrying every {interval:g}s", "33"))
             if not tty:
                 ui.warn(message)
@@ -1595,14 +1672,12 @@ def lookup(tree: Any, path: str) -> Any:
 
 def format_value(value: Any, limit: int = 40) -> str:
     """A compact, typed rendering of a variable value for ``pihello vars``."""
-    import json  # noqa: PLC0415
-
     if value is _MISSING or value is None:
         return "—"
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, str):
-        text = json.dumps(value, ensure_ascii=False)
+        text = _json_text(value)  # quoted, controls escaped: shows what the data holds
     elif isinstance(value, float):
         text = f"{value:.6g}"
     elif isinstance(value, list):
@@ -1630,8 +1705,6 @@ def _generic(path: str) -> str:
 
 
 def _cmd_vars(args: argparse.Namespace, ui: UI) -> int:
-    import json  # noqa: PLC0415
-
     from pihello import sources  # noqa: PLC0415
 
     stdout = _stdout()
@@ -1658,7 +1731,7 @@ def _cmd_vars(args: argparse.Namespace, ui: UI) -> int:
             data: Any = {k: v for k, v in flat.items() if _matches(k, args.pattern)}
         else:
             data = variables
-        stdout.write(json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n")
+        stdout.write(_json_text(data) + "\n")
         return EXIT_OK
 
     rows: list[tuple[str, Any, str]] = []
@@ -1666,7 +1739,8 @@ def _cmd_vars(args: argparse.Namespace, ui: UI) -> int:
         for path, value in sources.flatten(variables).items():
             if _matches(path, args.pattern):
                 info = catalog.get(path) or catalog.get(_generic(path))
-                rows.append((path, value, info.description if info else ""))
+                # keys can come from the Pi-hole's data too
+                rows.append((_sanitize(path), value, info.description if info else ""))
     else:
         for path, info in catalog.items():
             if _matches(path, args.pattern):
@@ -1797,10 +1871,10 @@ def _dispatch(argv: list[str], ui: UI) -> int:
         command == "show"
         and not explicit
         and args.addr in COMMANDS
-        and args.password is None
         and "--" not in argv  # `pihello -- doctor`: a host that is called "doctor"
     ):
-        # `pihello --config x doctor`: options before the command name.
+        # `pihello --config x doctor`, `pihello -q vars queries`: options before
+        # the command name (the "password" is the command's NAME / PATTERN).
         rest = list(argv)
         rest.remove(args.addr)
         return _dispatch([args.addr, *rest], ui)
@@ -1939,6 +2013,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         return code if isinstance(code, int) else EXIT_USAGE
     except PiHelloError as exc:
+        if exc.exit_code == EXIT_USAGE and not isinstance(exc, PasswordUnavailable):
+            # -q keeps an offline Pi-hole (or a locked password manager) out of
+            # new shells; a mistake in the command line, config or template is
+            # still worth a message.
+            ui.quiet = False
         ui.error(str(exc), exc.hint, excerpt=getattr(exc, "excerpt", None))
         return exc.exit_code
     except Exception as exc:
@@ -1948,7 +2027,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if ui.debug:
             import traceback  # noqa: PLC0415
 
-            ui._write("".join(traceback.format_exception(exc)).rstrip())
+            ui._write(ui.clean("".join(traceback.format_exception(exc))).rstrip())
         ui.quiet = False if ui.debug else ui.quiet
         ui.error(
             f"internal error: {type(exc).__name__}: {exc}",

@@ -26,6 +26,7 @@ __all__ = [
     "RESET",
     "Style",
     "StyleError",
+    "build_lenient",
     "build_style",
     "parse_style",
     "split_words",
@@ -183,12 +184,16 @@ def _unknown_word(word: str) -> StyleError:
     return StyleError(f"unknown style word {word!r}", hint=hint)
 
 
-def _parse_word(word: str) -> tuple[str, int, Color | None]:
+_Word = tuple[str, int, Color | None]  # (kind, attribute bit, color); kinds as in _WORD_CACHE
+
+
+def _classify(word: str) -> _Word | None:
+    """The parsed ``word``, or ``None`` if it is invalid (without building an error)."""
     cached = _WORD_CACHE.get(word)
     if cached is not None:
         return cached
     lowered = word.lower()
-    result: tuple[str, int, Color | None]
+    result: _Word
     attribute = ATTRIBUTES.get(lowered)
     if attribute is not None:
         result = ("a", attribute[0], None)
@@ -203,18 +208,38 @@ def _parse_word(word: str) -> tuple[str, int, Color | None]:
             kind = "b" if word[0] == ":" else "u"
             spec = word[1:]
             if not spec:
-                what = "background" if kind == "b" else "underline"
-                raise StyleError(f"missing {what} color after {word!r}", hint="e.g. :navy or _red")
+                return None
         try:
-            color = parse_color(spec)
-        except ColorParseError as error:
-            if kind == "f" and not spec.startswith(("#", "color(", "rgb(")):
-                raise _unknown_word(word) from None
-            raise StyleError(error.message, hint=error.hint) from None
+            color = parse_color(spec, hints=False)
+        except ColorParseError:
+            return None
         result = (kind, 0, None if color.is_default else color)
     if len(_WORD_CACHE) >= _WORD_CACHE_LIMIT:
         _WORD_CACHE.clear()
     _WORD_CACHE[word] = result
+    return result
+
+
+def _word_error(word: str) -> StyleError:
+    """Why ``word``, which :func:`_classify` rejected, is invalid (with a hint)."""
+    foreground = word[0] not in ":_"
+    spec = word if foreground else word[1:]
+    if not spec:
+        what = "background" if word[0] == ":" else "underline"
+        return StyleError(f"missing {what} color after {word!r}", hint="e.g. :navy or _red")
+    if foreground and not spec.startswith(("#", "color(", "rgb(")):
+        return _unknown_word(word)
+    try:
+        parse_color(spec)
+    except ColorParseError as error:
+        return StyleError(error.message, hint=error.hint)
+    raise AssertionError(f"{word!r} is a valid style word")  # pragma: no cover
+
+
+def _parse_word(word: str) -> _Word:
+    result = _classify(word)
+    if result is None:
+        raise _word_error(word)
     return result
 
 
@@ -268,6 +293,46 @@ def build_style(words: Sequence[str], base: Style = EMPTY) -> Style:
     if not attrs and fg is None and bg is None and ul is None:
         return EMPTY
     return Style(attrs, fg, bg, ul)
+
+
+def build_lenient(words: Sequence[str]) -> tuple[Style, bool]:
+    """Like :func:`build_style`, but skip the words it would reject: ``(style, dropped)``.
+
+    Invalid words, words that cannot follow ``on`` and a dangling ``on`` are
+    skipped (the same words as removing each offending word and retrying would
+    drop), in one pass and without building error messages, so data that
+    produces thousands of bad words costs linear time.
+    """
+    attrs = 0
+    fg = bg = ul = None
+    pending_on = dropped = False
+    for word in words:
+        parsed = _classify(word)
+        if parsed is None:
+            dropped = True
+            continue
+        kind, bit, color = parsed
+        if pending_on:
+            if kind != "f":
+                dropped = True
+                continue
+            pending_on = False
+            bg = color
+        elif kind == "a":
+            attrs |= bit
+        elif kind == "f":
+            fg = color
+        elif kind == "b":
+            bg = color
+        elif kind == "u":
+            ul = color
+        elif kind == "o":
+            pending_on = True
+        else:  # reset
+            attrs, fg, bg, ul = 0, None, None, None
+    if not attrs and fg is None and bg is None and ul is None:
+        return EMPTY, dropped or pending_on
+    return Style(attrs, fg, bg, ul), dropped or pending_on
 
 
 def split_words(text: str) -> list[str]:

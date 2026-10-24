@@ -324,13 +324,14 @@ def _parse_component(text: str, what: str, original: str, maximum: int = 255) ->
     return value
 
 
-def parse_color(text: str) -> Color:
+def parse_color(text: str, *, hints: bool = True) -> Color:
     """Parse a color specification.
 
     Accepts an xterm color name (``steelblue``, ``grey37``), ``color(N)`` with
     0 ≤ N ≤ 255, ``#rrggbb``, ``#rgb``, ``rgb(r, g, b)`` or ``default``.
 
-    Raises :class:`ColorParseError` (with a did-you-mean hint) on failure.
+    Raises :class:`ColorParseError` (with a did-you-mean hint unless ``hints``
+    is false, which skips the costly search) on failure.
     """
     original = text
     spec = text.strip().lower()
@@ -369,7 +370,7 @@ def parse_color(text: str) -> Color:
         raise ColorParseError(
             f"unknown color {original!r}", hint=f"use color({spec}) for palette colors"
         )
-    hint = did_you_mean(spec.replace("_", "").replace("-", ""), COLOR_NAMES)
+    hint = did_you_mean(spec.replace("_", "").replace("-", ""), COLOR_NAMES) if hints else None
     raise ColorParseError(
         f"unknown color {original!r}",
         hint=hint or f"use {_COLOR_FORMS}; `pihello colors` lists the names",

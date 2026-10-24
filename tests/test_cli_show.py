@@ -422,14 +422,39 @@ def test_missing_endpoint_renders_placeholder(
     assert not configured.active_sessions
 
 
-def test_every_source_failing_is_an_error(
+def test_every_source_unreachable_is_an_error(
     configured: FakePihole, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    configured.fail("dns/blocking", status=500)
+    configured.fail("dns/blocking", status=503, raw=b"")  # a proxy without its Pi-hole
     code, out, err = run(["-e", "{blocking}"], capsys)
-    assert code == 5
+    assert code == 3
     assert out == ""
-    assert "500" in err
+    assert "503" in err
+    assert not configured.active_sessions
+
+
+@pytest.mark.parametrize("fault", ["info/version", "every source"])
+def test_api_errors_leave_values_missing_even_for_the_only_source(
+    fault: str, configured: FakePihole, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Right after start-up FTL answers info/version with 500 internal_error
+    # (docs/compatibility.md, item 11): the Pi-hole is there, the value isn't yet.
+    error = {"key": "internal_error", "message": "Failed to read /etc/pihole/versions"}
+    configured.set_response("GET /api/info/version", 500, {"error": {**error, "hint": None}})
+    template = "{version.core.local.version}"
+    if fault == "every source":  # one more source, unreachable: still not fatal
+        configured.fail("dns/blocking", status=503, raw=b"")
+        template += " {blocking}"
+    code, out, err = run(["-e", template], capsys)
+    assert (code, err) == (0, "")
+    assert out == ("? ?\n" if fault == "every source" else "?\n")
+    code, _, err = run(["--debug", "-e", template], capsys)
+    assert code == 0
+    assert "info/version unavailable (version, updates missing)" in err
+    code, _, err = run(["--strict", "-e", template], capsys)
+    assert code == (3 if fault == "every source" else 5)  # the first problem
+    assert ("503" if fault == "every source" else "Failed to read /etc/pihole/versions") in err
+    assert not configured.active_sessions
 
 
 def test_no_url_with_password(
@@ -602,7 +627,7 @@ def test_watch_shows_errors_inline_and_retries(
     stream = TTY()
     monkeypatch.setattr(cli, "_stdout", lambda: stream)
     monkeypatch.setattr(terminal, "terminal_size", lambda _stream=None: (80, 10))
-    configured.fail("dns/blocking", status=503, times=1)
+    configured.fail("dns/blocking", status=503, raw=b"", times=1)
     ticker.events = [False]
     assert main(["--watch", "--no-color", "-e", "{blocking}", "--timeout", "1"]) == 0
     frames = stream.getvalue().split("\x1b[H")[1:]

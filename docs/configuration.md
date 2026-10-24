@@ -30,6 +30,7 @@ theme = "nord"
 
 - Strings need quotes.
 - Unknown keys and invalid values are errors with a hint, so typos don't go unnoticed.
+  `-q` doesn't hide them.
 - Relative paths in the file (`password_file`, `template`, a CA path in `verify_tls`) are relative to the directory of the config file. `~` is expanded.
 
 ## Precedence
@@ -63,7 +64,7 @@ Most keys also have a [command-line option](commands.md#show-options).
 | `password_file` | string | none | File whose first line is the password |
 | `password_command` | string or list | none | Command that prints the password, e.g. `"pass show pihole"` or `["pass", "show", "pihole"]` |
 | `verify_tls` | bool or string | `true` | Check the HTTPS certificate: `true` (system CA store), `false` (don't), or the path of a CA certificate (PEM file). See [HTTPS and certificates](#https-and-certificates). |
-| `timeout` | number | `3` | Network timeout per request, in seconds |
+| `timeout` | number | `3` | Network timeout per request, in seconds (at most 3600) |
 | `preset` | string | `"default"` | Built-in template; see `pihello presets` and the [preset gallery](presets.md) |
 | `template` | string | none | Path of your own [template](templates.md) file. Use either `preset` or `template`. |
 | `theme` | string | `"default"` | Color theme; see `pihello themes` and the [theme gallery](themes.md) |
@@ -134,6 +135,14 @@ password_command = ["secret-tool", "lookup", "service", "pihole"]   # run direct
 # password_command = "pass show pihole | head -n 1"                 # through /bin/sh
 ```
 
+On Windows, a string without shell syntax goes to Windows unchanged, which splits it by its own rules.
+Put a program path with spaces in double quotes, and write the setting as a TOML literal string (single quotes), so the backslashes stay as they are:
+
+```toml
+# %APPDATA%\pihello\config.toml
+password_command = '"C:\Program Files\Bitwarden CLI\bw.exe" get password pihole'
+```
+
 The command must exit with status 0 and is stopped after 30 seconds.
 Its output is captured, but it can still ask on the terminal itself (like GPG's pinentry does for a passphrase).
 
@@ -142,10 +151,11 @@ Its output is captured, but it can still ask on the terminal itself (like GPG's 
 - `pihello init` writes the config file and the password file with mode `600` (only you can read them).
 - If the config file contains a `password` (at the top level or in a profile) and other users can read it, pihello prints a warning with the `chmod` command that fixes it; `pihello doctor` reports it too.
 - The password never appears in pihello's output, error messages or `--debug` logs.
+  Messages and `pihello doctor` show a `password_command` only by its program, `password_command (bw …)`, because its arguments may hold a token.
   It is sent only in the login request; the session id travels in a request header, and every session is logged out again.
 - A password given as a command-line argument (`pihello ADDR PASSWORD`, the 1.x style) still works but prints a warning: it ends up in your shell history and is visible in `ps`.
   Move it into one of the places above.
-- Passwords inside the URL (`http://user:pw@pi.hole`) are rejected.
+- Passwords inside the URL (`http://user:pw@pi.hole`) are rejected, and messages show such a URL as `http://***@pi.hole`.
 
 ## Profiles
 

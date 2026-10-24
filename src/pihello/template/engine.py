@@ -8,24 +8,26 @@ height) and serialises them with minimal escape sequences.
 
 from __future__ import annotations
 
+import itertools
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from ..errors import TemplateError
 from .color import ColorDepth, alternatives, did_you_mean, suggest
-from .filters import to_number, to_text
+from .filters import MAX_TEXT, to_number, to_text
 from .layout import layout, serialize, strip_ansi
 from .parser import DYNAMIC, THEME, Expr, Tag, Text, excerpt, parse
-from .style import EMPTY, Style, StyleError, build_style, split_words
+from .style import EMPTY, Style, StyleError, build_lenient, build_style, split_words
 
 if TYPE_CHECKING:
+    import re
     from collections.abc import Mapping
 
     from .layout import Run
     from .parser import Node
 
-__all__ = ["RenderOptions", "Template", "escape", "render"]
+__all__ = ["RenderOptions", "Template", "escape", "render", "sanitize"]
 
 
 @dataclass(frozen=True)
@@ -66,22 +68,107 @@ _STYLE_CACHE: dict[tuple[str, ...], Style] = {}
 # Theme style strings → validated words.
 _THEME_WORDS: dict[str, tuple[str, ...]] = {}
 _CACHE_LIMIT = 512
+_CACHED_WORDS = 32  # longer word lists come from data; caching them would only cost memory
+
+
+# Removed from data: C0/C1 controls other than \t \n \v \f (escape sequences go first,
+# whole), lone surrogates (they cannot be encoded for output) and the format characters
+# that reorder text or hide it (bidi marks, embeddings, overrides and isolates,
+# zero-width space, word joiner and invisible operators, byte order mark, interlinear
+# annotation, tags, ...) or break lines (U+2028/U+2029). Kept: joiners (U+200C/U+200D
+# shape emoji and many scripts) and the soft hyphen.
+_DATA_CONTROLS = (
+    r"[\x00-\x08\x0d-\x1f\x7f-\x9f\u061c\u180e\u200b\u200e\u200f\u2028-\u202e"
+    r"\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U0001bca0-\U0001bca3"
+    r"\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f\ud800-\udfff]+"
+)
+_LITERAL_CONTROLS = r"[\x00-\x08\x0b-\x1f\x7f-\x9f\ud800-\udfff]+"
+_SPACES = str.maketrans("\t\v\f", "   ")
+_patterns: tuple[re.Pattern[str], re.Pattern[str]] | None = None
+
+
+def _controls() -> tuple[re.Pattern[str], re.Pattern[str]]:
+    """The ``(data, literal)`` control-character patterns, compiled lazily."""
+    global _patterns  # noqa: PLW0603 - compiled on first use to keep import cheap
+    if _patterns is None:
+        import re  # noqa: PLC0415
+
+        _patterns = (re.compile(_DATA_CONTROLS), re.compile(_LITERAL_CONTROLS))
+    return _patterns
 
 
 def _sanitize(text: str) -> str:
-    """Remove escape sequences, control characters (except newline and tab) and lone
-    surrogates (which cannot be encoded for output) from data.
+    """Clean a value from the data (see :func:`sanitize`).
 
     Whole escape sequences go, not just their ESC: widths count them as zero
-    columns, so a padded value keeps its width.
+    columns, so a padded value keeps its width. Tabs become single spaces for
+    the same reason (the padding filters count them as one column, too).
     """
     if "\x1b" in text:
         text = strip_ansi(text)
-    return "".join(
-        ch
-        for ch in text
-        if ch in "\n\t" or not (ch < " " or "\x7f" <= ch < "\xa0" or "\ud800" <= ch <= "\udfff")
-    )
+    text = _controls()[0].sub("", text)
+    if "\t" in text or "\v" in text or "\f" in text:
+        text = text.translate(_SPACES)
+    return text
+
+
+def _strip_controls(text: str) -> str:
+    """Clean a value the template wrote itself (a literal head): keep tabs, bidi marks."""
+    if "\x1b" in text:
+        text = strip_ansi(text)
+    return _controls()[1].sub("", text)
+
+
+def _clean(text: str, data: bool) -> str:
+    """``text`` cleaned for output (data or template-written) and cut to ``MAX_TEXT``.
+
+    Only the start of a huge value is cleaned: four times the limit leaves room
+    for plenty of escape sequences and keeps a 32 MiB reply cheap.
+    """
+    text = text[: 4 * MAX_TEXT]
+    if not text.isprintable():
+        text = _sanitize(text) if data else _strip_controls(text)
+    return text[:MAX_TEXT]
+
+
+def sanitize(text: str) -> str:
+    """Make untrusted text (such as Pi-hole data) safe to print on a terminal.
+
+    This is the cleaning the renderer applies to every value from the data:
+    terminal escape sequences are removed whole; tabs, vertical tabs and form
+    feeds become one space; other control characters (carriage returns, too), lone
+    surrogates and the invisible format characters that reorder or hide text
+    (bidi marks, overrides and isolates, zero-width space, byte order mark,
+    U+2028/U+2029, ...) are removed. Newlines are kept: replace them if you
+    need a single line. Zero-width joiners, the soft hyphen, combining marks
+    and other printable text are unchanged.
+    """
+    return _sanitize(text)
+
+
+_DESCRIBE_LIMIT = 60
+_MESSAGE_LIMIT = 1000
+
+
+def _short(text: str, limit: int = _DESCRIBE_LIMIT) -> str:
+    """Data ``text`` for an error message: sanitised, on one line, at most ``limit`` long."""
+    text = text[: 4 * limit]  # bounds the work; sanitising first keeps escape sequences whole
+    if not text.isprintable():
+        text = _sanitize(text).replace("\n", " ")
+    if len(text) > limit:
+        text = text[: limit - 1] + "…"
+    return text
+
+
+def _describe(value: Any) -> str:
+    """A short, terminal-safe ``repr`` of a data value for error messages."""
+    if isinstance(value, str) and len(value) > _DESCRIBE_LIMIT:
+        return repr(value[:_DESCRIBE_LIMIT]) + "…"
+    try:
+        text = repr(value)
+    except RecursionError:
+        return f"a {type(value).__name__} nested too deep"
+    return _short(text)
 
 
 # pihello 0.3 variable names → their 1.0 names (docs/upgrading.md), only for strict hints.
@@ -128,12 +215,13 @@ class _Context:
         self.now = options.now if options.now is not None else time.time()
 
     def error(self, message: str, line: int, column: int, hint: str | None = None) -> TemplateError:
+        # Messages and hints quote data (values, keys, words): never echo it raw.
         return TemplateError(
-            message,
+            _short(message, _MESSAGE_LIMIT),
             source_name=self.template.source_name,
             line=line,
             column=column,
-            hint=hint,
+            hint=None if hint is None else _short(hint, _MESSAGE_LIMIT),
             excerpt=excerpt(self.template.source, line, column),
         )
 
@@ -178,7 +266,9 @@ class _Context:
             except Exception as error:
                 if self.strict:
                     raise self.error(
-                        f"filter '{spec.name}' failed on {value!r}: {error}", call.line, call.column
+                        f"filter '{spec.name}' failed on {_describe(value)}: {_short(str(error))}",
+                        call.line,
+                        call.column,
                     ) from error
                 value = None
         return head, value
@@ -186,16 +276,19 @@ class _Context:
     def output(self, expr: Expr) -> str:
         head, value = self.evaluate(expr)
         text: str | None
-        if value is not None and expr.format_spec is not None:
-            text = self.format(expr, value)
-        else:
-            text = to_text(value)
+        try:
+            if value is not None and expr.format_spec is not None:
+                text = self.format(expr, value)
+            else:
+                text = to_text(value)
+        except RecursionError:  # a value nested too deep for the interpreter
+            text = None
         if text is None:
             if self.strict and not expr.has_default:
                 raise self.missing_error(expr, head, value)
             return self.missing
-        if not text.isprintable():
-            text = _sanitize(text)
+        if len(text) > MAX_TEXT or not text.isprintable():
+            text = _clean(text, expr.path is not None)
         return text
 
     def format(self, expr: Expr, value: Any) -> str | None:
@@ -203,8 +296,13 @@ class _Context:
         assert spec is not None  # noqa: S101 - caller checked
         if isinstance(value, (bool, list, tuple)):
             value = to_text(value)
+            if value is None:  # a list nested too deep
+                return None
         elif isinstance(value, dict) or hasattr(value, "keys"):
             return None
+        if isinstance(value, str) and (len(value) > MAX_TEXT or not value.isprintable()):
+            # Clean before padding: format() counts every character as one column.
+            value = _clean(value, expr.path is not None)
         candidates: list[Any] = [value]
         if isinstance(value, str):
             number = to_number(value)
@@ -219,7 +317,7 @@ class _Context:
                 continue
         if self.strict:
             raise self.error(
-                f"cannot apply format spec {spec!r} to {value!r}",
+                f"cannot apply format spec {spec!r} to {_describe(value)}",
                 expr.line,
                 expr.column,
                 "numeric specs such as .2f need a number",
@@ -244,13 +342,13 @@ class _Context:
                 f'add a fallback: {{{expr.path}|default("n/a")}}',
             )
         if isinstance(value, dict) or hasattr(value, "keys"):
-            keys = list(value.keys())
+            keys = [_short(str(key)) for key in itertools.islice(value.keys(), 12)]
             example = f"{{{expr.path}.{keys[0]}}}" if keys and expr.path else "{group.key}"
             return self.error(
                 f"'{expr.path or expr.source}' is a group; use e.g. {example}",
                 expr.line,
                 expr.column,
-                f"keys: {', '.join(map(str, keys[:12]))}" if keys else None,
+                f"keys: {', '.join(keys)}" if keys else None,
             )
         return self.error(
             f"{expr.source} has no value",
@@ -307,7 +405,7 @@ class _Context:
                     if theme
                     else "no theme is active; pass theme={...} to render()"
                 )
-            raise self.error(f"unknown theme style '@{name}'", line, column, hint)
+            raise self.error(f"unknown theme style '@{_short(name)}'", line, column, hint)
         words = _THEME_WORDS.get(value)
         if words is None:
             words = tuple(split_words(value))
@@ -347,8 +445,13 @@ class _Context:
                 for piece in payload:
                     if isinstance(piece, str):
                         pieces.append(piece)
-                    else:
-                        pieces.append(to_text(self.evaluate(piece)[1]) or "")
+                        continue
+                    value = self.evaluate(piece)[1]
+                    try:
+                        text = to_text(value) or ""
+                    except RecursionError:  # a value nested too deep is missing
+                        text = ""
+                    pieces.append(text[:MAX_TEXT])
                 for word in split_words("".join(pieces)):
                     if not word.startswith("@"):
                         words.append(word)
@@ -362,23 +465,22 @@ class _Context:
         if style is not None:
             return style
         dropped = False
-        while True:
+        if has_dynamic and not self.strict:
+            # Data produced something that is not a style (or left a dangling
+            # 'on'): skip the offending words, as a missing value would be.
+            style, dropped = build_lenient(words)
+        else:
             try:
                 style = build_style(words)
-                break
             except StyleError as error:
-                if self.strict or not has_dynamic:
-                    raise self.error(
-                        f"invalid style from {tag.source}: {error.message}",
-                        tag.line,
-                        tag.column,
-                        error.hint,
-                    ) from None
-                # Data produced something that is not a style (or left a dangling
-                # 'on'): drop the offending word, as a missing value would be.
-                del words[error.index or 0]
-                dropped = True
-        if not dropped:
+                raise self.error(
+                    f"invalid style from {tag.source}: {error.message}",
+                    tag.line,
+                    tag.column,
+                    error.hint,
+                ) from None
+        # A result that skipped words is not cached: with strict, the same words must fail.
+        if not dropped and len(key) <= _CACHED_WORDS:
             if len(_STYLE_CACHE) >= _CACHE_LIMIT:
                 _STYLE_CACHE.clear()
             _STYLE_CACHE[key] = style

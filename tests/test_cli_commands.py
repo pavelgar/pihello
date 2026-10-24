@@ -369,3 +369,50 @@ def test_presets_listing_ends_with_a_hint(capsys: pytest.CaptureFixture[str]) ->
     for argv in (["presets", "default"], ["presets", "--no-preview"]):
         _, out, _ = run(argv, capsys)
         assert "pihello presets NAME" not in out
+
+
+#: Pi-hole data any LAN client can plant (a DNS query for a crafted name lands
+#: in top_domains): OSC title, CSI clear, a C1 CSI, bidi override and isolate.
+EVIL = "evil\x1b]0;owned\x07\x1b[2J\u009b31m\u202egnp.exe\u2066x\u2069"
+CONTROLS = ("\x1b", "\x07", "\u009b", "\u202e", "\u2066", "\u2069")
+
+
+def _evil_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+    data = demo.variables()
+    data["top_domains"] = [{"domain": EVIL, "count": 3}]
+    data["queries"]["types"] = {EVIL: 1}
+    monkeypatch.setattr(demo, "variables", lambda: data)
+
+
+def test_vars_table_shows_no_terminal_controls(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _evil_demo(monkeypatch)
+    for argv in (["top_domains"], ["--all", "top_domains"], ["--all", "queries.types"]):
+        code, out, err = run(["vars", "--demo", *argv], capsys)
+        assert code == 0, err
+        assert "evil" in out
+        for control in CONTROLS:
+            assert control not in out, (argv, control)
+
+
+def test_vars_json_escapes_c1_and_bidi_controls(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _evil_demo(monkeypatch)
+    for argv in ([], ["top_domains"], ["queries.types"]):
+        code, out, err = run(["vars", "--demo", "--json", *argv], capsys)
+        assert code == 0, err
+        for control in CONTROLS:
+            assert control not in out, (argv, control)
+        assert "\\u009b" in out
+        assert "\\u202e" in out
+        data = json.loads(out)  # still valid JSON, with the exact data
+        if not argv:
+            assert data["top_domains"][0]["domain"] == EVIL
+            assert EVIL in data["queries"]["types"]
+        elif argv == ["top_domains"]:
+            assert data["top_domains.0.domain"] == EVIL
+        else:
+            assert f"queries.types.{EVIL}" in data
+    assert "ü" in cli._json_text({"x": "ü"})  # printable text stays readable

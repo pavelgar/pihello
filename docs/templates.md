@@ -128,6 +128,11 @@ That's how presets turn the status dot green or red:
 Filter arguments are literals, so the threshold has to be written out (`gt(60)`, not `gt(sensors.hot_limit)`).
 Words produced by data that aren't valid styles are skipped (with `--strict` they're an error).
 
+A bare `@name` argument, as in `if(@bad, @good)`, is a theme style.
+It's checked on every render, so a typo is an error even while the data picks the other branch.
+In quotes, `@` is plain text: `eq("@home")` compares the value with `@home`.
+If a quoted `"@name"` ends up as the style, it's read like a word from the data.
+
 ## Expressions
 
 ```text
@@ -166,7 +171,7 @@ Arguments are written in parentheses, by position or by name, and can be:
 - strings: `"…"` or `'…'` (quote anything with spaces, commas or parentheses)
 - numbers: `10`, `-1`, `0.5`
 - `true`, `false`, `none` (or `null`)
-- bare words, which are strings: `bytes(KiB)`, `if(@warn, @muted)`
+- bare words, which are strings: `bytes(KiB)`, `if(@warn, @muted)` (a bare `@name` is a theme style; see [Conditional styling](#conditional-styling))
 
 Arguments are always literals; they can't refer to other variables.
 Unknown filters and wrong arguments are reported when the template is read, before anything is fetched.
@@ -195,12 +200,20 @@ Without a filter or format spec:
 - whole numbers as they are: `48220` (use `number` for `48,220`)
 - decimals with one digit: `14.7` (as in pihello 1.x)
 - `true`/`false` as `yes`/`no`
-- lists as their items joined with `, `
+- lists as their items joined with `, ` (a list nested more than 32 levels deep is missing)
 - strings as they are
 
-Terminal escape sequences and other control characters in Pi-hole's data (except tabs and newlines) are removed,
-so a hostile domain name can't send escape sequences to your terminal or throw off the alignment of padded columns.
+Pi-hole's data is cleaned before it's printed or padded,
+so a hostile domain name can't send escape sequences to your terminal, disguise itself or throw off the alignment of padded columns:
+
+- Terminal escape sequences and control characters are removed.
+- Tabs (and vertical tabs and form feeds) become a single space.
+- Invisible characters that reorder or hide text are removed, such as the bidirectional overrides (U+202A–U+202E), isolates (U+2066–U+2069) and marks, the zero-width space and the byte order mark.
+  Zero-width joiners stay, because emoji and many scripts need them.
+- A value prints at most 65,536 characters; the rest is cut.
+
 A value that contains a newline continues on the next output line.
+These rules are for data: a tab you write in the template, also as `\t` in a quoted string, still moves to the next tab stop.
 
 ## Missing values
 
@@ -245,6 +258,7 @@ A line that contains nothing but comments and spaces disappears completely (incl
   Styles continue on wrapped lines.
 - **Height**: `-H N` / `height = N` prints at most N lines, counting the `--timestamp` line. `0` means no limit.
 - **Tabs** are expanded to the next multiple of `-i N` / `--tab-size N` columns (default 4), which makes simple columns easy.
+  Tabs in Pi-hole's data print as a single space instead.
 - **Character widths** are counted the way terminals do: escape sequences and combining marks take no space,
   and East Asian wide characters (and the emoji Unicode classifies as wide) take two columns.
   Filters such as `truncate`, `ljust` and `center` use the same rules.

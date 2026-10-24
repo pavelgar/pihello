@@ -5,14 +5,14 @@ from __future__ import annotations
 import io
 from typing import TYPE_CHECKING
 
+import pytest
+
 from pihello import config
 from pihello.cli import UI, build_parser, cli_overrides, main, resolve_settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
-
-    import pytest
 
     from helpers.fakepihole import FakePihole
 
@@ -199,8 +199,8 @@ def test_mistyped_command_is_not_taken_as_a_host(
     err = capsys.readouterr().err
     assert "unknown command 'pihole'" in err
     assert "pihello -u pihole" in err
-    assert main(["-q", "shwo"]) == 2
-    assert capsys.readouterr().err == ""
+    assert main(["-q", "shwo"]) == 2  # a usage mistake: printed even with -q
+    assert "unknown command 'shwo'" in capsys.readouterr().err
 
 
 def test_lone_addr_that_looks_like_a_host_is_still_accepted(
@@ -258,3 +258,72 @@ def test_double_dash_keeps_a_host_named_like_a_command(monkeypatch: pytest.Monke
         ("show", "doctor", "-secret-"),
         ("doctor", None, None),
     ]
+
+
+def test_https_flag_normalises_the_url_before_forcing_https() -> None:
+    from pihello.cli import _apply_https
+
+    for url in ("HTTP://host", " http://host", "Http://host/admin/", "host", "https://host"):
+        assert _apply_https(url) == "https://host", url
+    assert _apply_https("HTTP://Host:8080") == "https://host:8080"
+    assert _apply_https("fd00::2") == "https://[fd00::2]"
+
+
+@pytest.mark.parametrize("spelling", ["HTTP://{}", " http://{}", "Http://{}", "{}"])
+def test_https_flag_never_sends_the_password_over_http(
+    spelling: str,
+    fake_pihole: FakePihole,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The fake Pi-hole only speaks plain HTTP: with -p the login must never reach it.
+    monkeypatch.setenv("PIHELLO_PASSWORD", PASSWORD)
+    url = spelling.format(fake_pihole.url.removeprefix("http://"))
+    code = main(["-p", "--url", url, "-e", "{blocking}", "--timeout", "2"])
+    err = capsys.readouterr().err
+    assert code == 3, err
+    assert not fake_pihole.requests, [r.endpoint for r in fake_pihole.requests]
+    assert "TLS handshake" in err  # it tried HTTPS
+
+
+def test_options_before_a_command_that_takes_a_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # `pihello --no-color presets default` is the presets command with its NAME,
+    # not the 1.x `pihello ADDR PASSWORD`: no password warning, no DNS lookup.
+    import socket
+
+    from pihello import cli
+
+    lookups: list[object] = []
+
+    def record_lookup(host: object, *_args: object, **_kwargs: object) -> None:
+        lookups.append(host)
+        raise socket.gaierror(socket.EAI_NONAME, "stubbed")
+
+    monkeypatch.setattr(socket, "getaddrinfo", record_lookup)
+    code = main(["--no-color", "presets", "default"])
+    out, err = capsys.readouterr()
+    assert code == 0, err
+    assert out.startswith("default  ")
+    assert err == ""
+
+    seen: list[tuple[str, object]] = []
+
+    def record(name: str) -> Callable[..., int]:
+        def handler(args: object, _ui: object) -> int:
+            seen.append((name, getattr(args, "name", getattr(args, "pattern", None))))
+            return 0
+
+        return handler
+
+    for command in ("vars", "themes"):
+        monkeypatch.setitem(cli._HANDLERS, command, record(command))
+    assert main(["-q", "vars", "queries"]) == 0
+    assert main(["--no-color", "themes", "nord"]) == 0
+    assert seen == [("vars", "queries"), ("themes", "nord")]
+    assert capsys.readouterr().err == ""
+    # `themes` has no -T (NAME is the theme): a usage error, still no lookup
+    assert main(["-T", "nord", "themes", "nord"]) == 2
+    assert "unrecognized arguments: -T nord" in capsys.readouterr().err
+    assert lookups == []

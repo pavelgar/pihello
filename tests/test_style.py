@@ -11,6 +11,7 @@ from pihello.template.style import (
     RESET,
     Style,
     StyleError,
+    build_lenient,
     build_style,
     parse_style,
     split_words,
@@ -141,6 +142,37 @@ def test_build_style_errors(words: list[str], index: int, message: str) -> None:
         build_style(words)
     assert info.value.index == index
     assert message in info.value.message
+
+
+@pytest.mark.parametrize(
+    ("words", "kept"),
+    [
+        (["bold", "red"], ["bold", "red"]),
+        (["bogus", "red"], ["red"]),
+        (["on", "on", "navy"], ["on", "navy"]),
+        (["on", "bogus", "navy"], ["on", "navy"]),
+        (["on", "bold", "navy"], ["on", "navy"]),  # 'bold' cannot follow 'on'
+        (["on", ":red", "navy"], ["on", "navy"]),
+        (["red", "on"], ["red"]),  # a dangling 'on' is dropped
+        (["on", "bold"], []),
+        ([":bogus", "_", ":navy", "#12", "rgb(1,2)", "color(300)"], [":navy"]),
+        (["bold", "normal", "italic"], ["bold", "normal", "italic"]),
+        ([], []),
+    ],
+)
+def test_build_lenient_skips_what_build_style_rejects(words: list[str], kept: list[str]) -> None:
+    style, dropped = build_lenient(words)
+    assert style == build_style(kept)
+    assert dropped is (words != kept)
+
+
+def test_build_lenient_is_linear_and_skips_hints() -> None:
+    import time
+
+    words = [f"zq{index}x" for index in range(20_000)] + ["bold"]
+    start = time.perf_counter()
+    assert build_lenient(words) == (parse_style("bold"), True)
+    assert time.perf_counter() - start < 0.5
 
 
 def test_unknown_word_hints() -> None:

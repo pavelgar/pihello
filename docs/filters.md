@@ -55,7 +55,7 @@ Filters transform a value in a [template](templates.md) expression, from left to
 | `rjust(n, fill=" ")` | Pad on the left to n visible columns |  |
 | `center(n, fill=" ")` | Center within n visible columns |  |
 | `replace(old, new)` | Substring replace |  |
-| `repeat(n)` | Repeat the text n times | `{"─"\|repeat(40)}` |
+| `repeat(n)` | Repeat the text n times (the result is cut at 65,536 characters) | `{"─"\|repeat(40)}` |
 | `prefix(s)` | Add text before the value when it is non-empty | `{timer\|duration\|prefix(" for ")\|default("")}` |
 | `suffix(s)` | Add text after the value when it is non-empty |  |
 | `default(x)` | Replace a missing value or "" (also suppresses missing/strict) | `{timer\|default("forever")}` |

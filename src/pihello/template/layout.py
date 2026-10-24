@@ -155,11 +155,34 @@ def clip_text(text: str, width: int) -> str:
     return "".join(kept)
 
 
+def _capped_width(text: str, cap: int) -> int:
+    """``visible_width(text)`` if it is at most ``cap``, else some number above ``cap``.
+
+    Stops reading once ``text`` is known to be wider, so a huge value costs no
+    more than the columns that matter.
+    """
+    if "\n" in text:
+        widest = 0
+        for line in text.split("\n"):
+            widest = max(widest, _capped_width(line, cap))
+            if widest > cap:
+                break
+        return widest
+    if text.isascii() and text.isprintable():
+        return len(text)
+    column = 0
+    for _, cells in _cells(text):
+        column += cells
+        if column > cap:
+            break
+    return column
+
+
 def truncate(text: str, width: int, end: str = "…") -> str:
     """Limit ``text`` to ``width`` visible columns, marking the cut with ``end``."""
     if width <= 0:
         return ""
-    if visible_width(text) <= width:
+    if (visible_width(text) if len(text) <= 1024 else _capped_width(text, width)) <= width:
         return text
     end_width = visible_width(end)
     if end_width > width:
@@ -173,7 +196,7 @@ def pad(text: str, width: int, fill: str = " ", align: str = "<") -> str:
     ``align`` is ``"<"`` (left-justify), ``">"`` (right) or ``"^"`` (center).
     Text that is already wide enough is returned unchanged.
     """
-    missing = width - visible_width(text)
+    missing = width - (visible_width(text) if len(text) <= 1024 else _capped_width(text, width))
     if missing <= 0 or not fill:
         return text
     if align == "<":
@@ -216,10 +239,6 @@ def expand_tabs(runs: list[Run], tab_size: int) -> list[Run]:
 _Cell = tuple[str, str, int]  # (sgr, piece, width)
 
 
-def _flatten(runs: list[Run]) -> list[_Cell]:
-    return [(sgr, piece, cells) for sgr, text in runs for piece, cells in _cells(text)]
-
-
 def _regroup(cells: list[_Cell]) -> list[Run]:
     runs: list[Run] = []
     current_sgr = ""
@@ -254,12 +273,13 @@ def _rstrip(cells: list[_Cell]) -> list[_Cell]:
 _NO_BREAK = frozenset("\xa0\u2007\u202f")  # no-break, figure and narrow no-break space
 
 
-def wrap_runs(runs: list[Run], width: int) -> list[list[Run]]:
+def wrap_runs(runs: list[Run], width: int, limit: int = 0) -> list[list[Run]]:
     """Word-wrap one logical line to ``width`` columns.
 
     Breaks at the last whitespace (other than no-break spaces) when possible (the
     whitespace at the break is dropped), otherwise hard-breaks. A character wider than ``width`` is
-    placed on its own line.
+    placed on its own line. ``limit > 0`` returns at most that many lines and
+    stops reading the text there, so a huge value costs no more than the lines shown.
     """
     lines: list[list[_Cell]] = []
     line: list[_Cell] = []
@@ -267,7 +287,10 @@ def wrap_runs(runs: list[Run], width: int) -> list[list[Run]]:
     break_at = -1  # index in `line` of the last whitespace preceded by content
     has_content = False
     skip_space = False
-    for cell in _flatten(runs):
+    cells_of = ((sgr, piece, cells) for sgr, text in runs for piece, cells in _cells(text))
+    for cell in cells_of:
+        if limit and len(lines) >= limit:
+            return [_regroup(cells) for cells in lines[:limit]]
         cells = cell[2]
         if not cells:
             line.append(cell)
@@ -353,7 +376,7 @@ def layout(
             if overflow == "clip":
                 result.append(clip_runs(runs, width))
             else:
-                result.extend(wrap_runs(runs, width))
+                result.extend(wrap_runs(runs, width, height - len(result) if height else 0))
         else:
             result.append(runs)
         if 0 < height <= len(result):

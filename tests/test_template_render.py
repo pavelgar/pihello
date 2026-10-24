@@ -14,6 +14,7 @@ from pihello.template import (
     Template,
     escape,
     render,
+    sanitize,
     strip_ansi,
     visible_width,
 )
@@ -102,7 +103,7 @@ def test_theme_styles() -> None:
         ("[@good]x", {"good": "gren"}, "theme style '@good' ('gren') is invalid", "'green'"),
         ("[@good]x", {"good": "bold @bad"}, "refers to '@bad'", "cannot reference"),
         ("[{x|map(a=@goood)}]y", THEME, "unknown theme style '@goood'", "'@good'"),
-        ("[{x|if(@good, 'bold @bda')}]y", THEME, "unknown theme style '@bda'", "'@bad'"),
+        ("[{x|if(@good, @bda)}]y", THEME, "unknown theme style '@bda'", "'@bad'"),
     ],
 )
 def test_theme_errors(source: str, theme: Any, reason: str, hint: str | None) -> None:
@@ -409,6 +410,215 @@ def test_strict_default_suppresses() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Hostile data                                                                 #
+# --------------------------------------------------------------------------- #
+def _nested(depth: int, leaf: Any = "a") -> Any:
+    value = leaf
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
+@pytest.mark.parametrize("depth", [400, 100_000])
+def test_deeply_nested_lists_are_missing(depth: int) -> None:
+    # Regression: to_text() recursed once per level, so a hostile Pi-hole sending
+    # a list nested ~400 deep made render() raise RecursionError (exit 1).
+    deep = {"x": _nested(depth)}
+    assert r("{x}|{x:>3}|{x|join}|{x|first|first}", deep, color=NONE) == "?|?||?"
+    assert r("[{x}]y {x|map(a=b)}", deep, color=NONE) == "y ?"
+    for source in ("{x}", "{x:>3}", "{x|map(a=b)}"):
+        with pytest.raises(TemplateError):
+            r(source, deep, strict=True)
+
+
+def test_nesting_up_to_the_limit_still_renders() -> None:
+    assert r("{x}", {"x": _nested(30)}, color=NONE) == "a"
+    assert r("{x}", {"x": [1, _nested(30, 2)]}, color=NONE) == "1, 2"
+
+
+def test_recursion_errors_are_missing_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pihello.template import engine
+
+    def deep(value: Any) -> str | None:
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(engine, "to_text", deep)
+    assert r("{x}|{x:>3}|[{x}]y", {"x": [1]}, color=NONE) == "?|?|y"
+    with pytest.raises(TemplateError, match="has no value"):
+        r("{x}", {"x": [1]}, strict=True)
+
+
+def test_huge_values_are_cut() -> None:
+    # Regression: wrapping a 20 MB value took 1.6 GB and 7 s, even with a height.
+    assert len(r("{x}", {"x": "a" * 100_000}, color=NONE)) == 65_536
+    assert len(r('{"ab"|repeat(40000)}', color=NONE)) == 65_536
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["a" * 5_000_000, "word " * 1_000_000, "日本" * 2_500_000],
+    ids=["ascii", "words", "wide"],
+)
+def test_huge_values_render_quickly(value: str) -> None:
+    import time
+    import tracemalloc
+
+    tracemalloc.start()
+    start = time.perf_counter()
+    try:
+        output = r("[@good]{x}[] {x|upper}", {"x": value}, width=80, height=24, color=NONE)
+        elapsed = time.perf_counter() - start
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert len(output.split("\n")) == 24
+    assert elapsed < 1.0
+    assert peak < 64 * 1024 * 1024 + 4 * len(value)  # the value and its upper() copy
+
+
+def test_format_specs_pad_sanitized_data() -> None:
+    # Regression: the format spec ran first and counted the escape sequence.
+    assert r("|{x:>16}|", {"x": "evil\x1b[31m.com"}, color=NONE) == "|        evil.com|"
+    assert r("|{x:<6}|", {"x": ["a\x1b]0;t\x07b"]}, color=NONE) == "|ab    |"
+    assert r("|{x:^5}|", {"x": "a\tb"}, color=NONE) == "| a b |"
+
+
+def test_tabs_in_data_are_single_spaces() -> None:
+    # Regression: data tabs were expanded to tab stops after ljust/truncate had
+    # counted them as zero columns, so padded columns grew.
+    assert r("{x}|", {"x": "a\tb\x0bc\x0cd"}, color=NONE) == "a b c d|"
+    assert r("{x|ljust(6)}|", {"x": "a\tb"}, color=NONE) == "a b   |"
+    assert r("{x|truncate(3)}|", {"x": "a\t\tbcd"}, color=NONE) == "a …|"
+    assert r("{x|join}|", {"x": ["a\tb", "c"]}, color=NONE) == "a b, c|"
+    # tabs written in the template keep their tab stops
+    assert r("a\t{x}\tb", {"x": "c"}, color=NONE) == "a   c   b"
+    assert r('{"a\\tb"}', color=NONE) == "a   b"
+
+
+def test_tabs_in_data_keep_the_top_preset_aligned() -> None:
+    from pihello import demo, presets, themes
+
+    template = Template.parse(presets.get("top").source)
+    data = demo.variables()
+    clean = template.render(data, theme=themes.resolve("default"), options=RenderOptions())
+    for group in ("top_domains", "top_blocked"):
+        for entry in data[group]:
+            entry["domain"] = "\t".join(entry["domain"].split("."))
+    for group in ("top_clients", "top_blocked_clients"):
+        for entry in data[group]:
+            entry["label"] = "\t" + entry["label"]
+    hostile = template.render(data, theme=themes.resolve("default"), options=RenderOptions())
+    widths = [visible_width(line) for line in clean.split("\n")]
+    assert [visible_width(line) for line in hostile.split("\n")] == widths
+    assert max(widths) == 64
+
+
+@pytest.mark.parametrize(
+    "invisible",
+    [
+        *"\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a\u202b\u202c\u202d\u202e",
+        *"\u2060\u2061\u2064\u2066\u2067\u2068\u2069\u206a\u206f\ufeff\ufff9\ufffb",
+        "\U0001bca0",
+        "\U0001d173",
+        "\U000e0001",
+        "\U000e0041",
+    ],
+)
+def test_reordering_and_invisible_characters_are_removed_from_data(invisible: str) -> None:
+    value = f"evil{invisible}moc.example"
+    assert r("{x}", {"x": value}, color=NONE) == "evilmoc.example"
+    assert r("|{x:>16}|{x|rjust(16)}|", {"x": value}, color=NONE) == (
+        "| evilmoc.example| evilmoc.example|"
+    )
+    assert sanitize(value) == "evilmoc.example"
+
+
+def test_visible_format_characters_are_kept() -> None:
+    # Joiners shape emoji and many scripts; the soft hyphen is visible.
+    for text in ("👩\u200d💻", "क\u200dष", "Pi\u200cHole", "Pi\xadhole", "a\u00a0b", "e\u0301"):
+        assert r("{x}", {"x": text}, color=NONE) == text
+    # the template's own characters are not data
+    assert r("[@good]\u202eab\u202c {x}", {"x": "\u202ecd"}, color=NONE) == "\u202eab\u202c cd"
+
+
+def test_sanitize_contract() -> None:
+    assert sanitize("plain text") == "plain text"
+    assert sanitize("a\x1b[31mb\x1b]0;title\x07c\x1bPdcs\x1b\\d") == "abcd"
+    assert sanitize("a\tb\x0bc\x0cd") == "a b c d"
+    assert sanitize("one\r\ntwo\x00\x7f\x9b") == "one\ntwo"
+    assert sanitize("x\ud800y\u202ez\u200b") == "xyz"
+    assert sanitize("日本 👩\u200d💻") == "日本 👩\u200d💻"
+    assert sanitize("") == ""
+
+
+@pytest.mark.parametrize(
+    ("source", "variables"),
+    [
+        ("{q}", {"q": {"cpu_temp": 1, "k\x1b]0;owned\x07": 2}}),
+        ("{q}", {"q": {"k\x1b]0;owned\x07\u202e": 1}}),
+        ("{q.tota}", {"q": {"tota\x07l": 1}}),
+        ("{q.total}", {"q.tot\x1b[2Jal": 1}),
+        ("[{x}]y", {"x": "@ba\x1b]0;owned\x07d"}),
+        ("[bold {x}]y", {"x": "re\x1b]0;owned\x07d"}),
+        ("{x|map(a=b)}", {"x": _nested(100_000)}),
+        ("{x:.2f}", {"x": "\x1b]0;owned\x07" * 1000}),
+    ],
+)
+def test_strict_messages_never_echo_raw_data(source: str, variables: dict[str, Any]) -> None:
+    # Regression: strict hints quoted data-controlled dict keys verbatim, e.g.
+    # "keys: cpu_temp, k\x1b]0;owned\x07", which retitled the terminal window.
+    with pytest.raises(TemplateError) as info:
+        r(source, variables, strict=True)
+    for text in (info.value.reason, info.value.hint or ""):
+        assert text.isprintable(), text
+        assert len(text) < 400
+
+
+def test_invalid_style_words_from_data_are_dropped_in_linear_time() -> None:
+    # Regression: each invalid word restarted the style and computed a
+    # did-you-mean hint nobody saw: 48 KB of words took 3 s.
+    import time
+
+    words = " ".join(f"zq{index}x" for index in range(8000))
+    start = time.perf_counter()
+    assert r("[bold {x}]y", {"x": words}) == f"\x1b[0;1my{R}"
+    assert time.perf_counter() - start < 0.5
+
+
+@pytest.mark.parametrize(
+    ("words", "expected"),
+    [
+        ("bogus red", f"\x1b[0;91my{R}"),
+        ("on on navy", f"\x1b[0;44my{R}"),
+        ("on bogus navy", f"\x1b[0;44my{R}"),
+        ("on bold navy", f"\x1b[0;44my{R}"),
+        ("red on", f"\x1b[0;91my{R}"),
+        ("on bold", "y"),
+        (":bogus _ :navy", f"\x1b[0;44my{R}"),
+        ("#12 rgb(1,2) color(300) bold", f"\x1b[0;1my{R}"),
+        ("@nope @bad", f"\x1b[0;91my{R}"),
+    ],
+)
+def test_invalid_style_words_from_data(words: str, expected: str) -> None:
+    assert r("[{x}]y", {"x": words}) == expected
+
+
+def test_quoted_at_in_tag_arguments_is_plain_text() -> None:
+    # Regression: "@home" in quotes was taken for a theme style and every render failed.
+    source = '[{x|eq("@home")|if(@good, @bad)}]y'
+    assert r(source, {"x": "@home"}) == f"\x1b[0;1;32my{R}"
+    assert r(source, {"x": "work"}) == f"\x1b[0;91my{R}"
+    assert r('[{x|map("@a"="b", _=@bad)}]y', {"x": 1}) == f"\x1b[0;91my{R}"
+    assert r("[{x|replace('@typo', '')}]y", {"x": "red"}) == f"\x1b[0;91my{R}"
+    # quoted text that ends up in the style is read like data: unknown names are skipped…
+    assert r("[{x|if('bold @nope', @bad)}]y", {"x": 1}) == f"\x1b[0;1my{R}"
+    assert r("[{x|if('bold @bad', @good)}]y", {"x": 1}) == f"\x1b[0;1;91my{R}"
+    # …and bare @names are checked on every render, whichever branch is taken
+    with pytest.raises(TemplateError, match="unknown theme style '@bda'"):
+        r('[{x|eq("@home")|if(@good, @bda)}]y', {"x": "@home"})
+
+
+# --------------------------------------------------------------------------- #
 # Layout through render                                                        #
 # --------------------------------------------------------------------------- #
 def test_wrap_styled_text() -> None:
@@ -446,7 +656,7 @@ def test_tabs_expand() -> None:
     assert r("a\tb", color=NONE) == "a   b"
     assert r("a\tb", tab_size=8, color=NONE) == "a       b"
     assert r("[red]ab\t[blue]c", tab_size=4) == f"\x1b[0;91mab  \x1b[0;94mc{R}"
-    assert r("{v}", {"v": "x\ty"}, color=NONE) == "x   y"
+    assert r("{v}", {"v": "x\ty"}, color=NONE) == "x y"  # a tab in data is a single space
 
 
 # --------------------------------------------------------------------------- #

@@ -87,6 +87,7 @@ path = "src/pihello/__init__.py"
 include = [
     "/src",
     "/tests",
+    "/scripts",  # tests/test_fixtures.py checks the fixture recorder
     "/docs",
     "/CHANGELOG.md",
     "/README.md",

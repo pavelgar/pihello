@@ -53,7 +53,7 @@ src/pihello/
 │   └── *.txt          # preset templates
 └── template/
     ├── __init__.py    # public API: Template, RenderOptions, ColorDepth, TemplateError,
-    │                  #             render(), escape(), strip_ansi(), visible_width()
+    │                  #             render(), escape(), sanitize(), strip_ansi(), visible_width()
     ├── parser.py      # tokenizer + parser → flat node list (Text, NEWLINE, Tag, Expr)
     ├── engine.py      # Template, RenderOptions, evaluation, render(), escape()
     ├── filters.py     # filter implementations, signatures, registry, catalog()
@@ -234,6 +234,9 @@ def render(source: str, variables: Mapping[str, Any], **kwargs: Any) -> str: ...
     # kwargs: name=, theme=, options=, or any RenderOptions field; parsed templates are cached
 def escape(text: str) -> str: ...           # escape [ ] { } \ so text renders literally
 def strip_ansi(text: str) -> str: ...
+def sanitize(text: str) -> str: ...         # remove escape sequences, C0/C1 controls (not \n),
+                                            # lone surrogates and bidi/invisible format characters;
+                                            # \t \v \f become one space; used for all Pi-hole data
 def visible_width(text: str) -> int: ...    # ANSI-aware, East-Asian-wide aware
 TemplateError                               # re-exported from pihello.errors
 ```
@@ -334,6 +337,8 @@ def plan(paths: Iterable[str]) -> tuple[Source, ...]          # minimal sources,
 def plan_all() -> tuple[Source, ...]
 def fetch(client: PiholeClient, sources: Iterable[Source], *, max_workers: int = 6
           ) -> tuple[dict[str, Any], list[FetchProblem]]      # AuthenticationError propagates;
+                                                              # after a ConnectionFailed, unstarted
+                                                              # sources are skipped with that error;
                                                               # results merged in source order
 def builtins(*, url: str | None, now: float | None = None) -> dict[str, Any]
 def collect(client: PiholeClient, paths: Iterable[str] | None = None, *, now: float | None = None
@@ -352,6 +357,7 @@ def flatten(variables: Mapping[str, Any]) -> dict[str, Any]   # {"queries.total"
 ```python
 DEFAULT_TIMEOUT = 5.0     # the CLI passes Settings.timeout (default 3)
 LOGOUT_TIMEOUT = 2.0
+MAX_TIMEOUT = 3600.0
 LOGIN_RATE_LIMIT_RETRIES = 2
 
 def normalize_url(url: str) -> str
@@ -364,7 +370,7 @@ class PiholeClient:
     def __init__(self, url: str, password: str | None = None, *,
                  timeout: float = DEFAULT_TIMEOUT,
                  verify: bool | str = True,      # False = no verification, str = CA file or dir
-                 user_agent: str | None = None) -> None   # ConfigError: URL, timeout, CA path
+                 user_agent: str | None = None) -> None   # ConfigError: URL, timeout (0 < t ≤ MAX_TIMEOUT), CA path
     base_url: str       # normalised, without /api
     api_url: str        # base_url + "/api"
     sid: str | None
@@ -392,15 +398,21 @@ class PiholeClient:
   On a `401` the client logs in again once and retries (session expired, watch mode); with concurrent requests only one thread renews the session.
 - `logout()` sends `DELETE /api/auth` (timeout ≤ `LOGOUT_TIMEOUT`) so sessions never leak (Pi-hole has a small `webserver.api.max_sessions` limit, default 16).
 - Responses: non-JSON or non-Pi-hole responses → `APIError` (hint: wrong URL or Pi-hole v5); `404` with a Pi-hole error object → `EndpointNotFound` (without one → `APIError`); `502`/`503`/`504` without a Pi-hole error → `ConnectionFailed` (reverse proxy / restart).
+  Server-provided text quoted in error messages (Pi-hole's `error.message`/`hint`, a login's `session.message`, a redirect's `Location`, HTTP reason phrases, a proxy's CONNECT reply) goes through `pihello.template.sanitize`, with whitespace collapsed; `APIError.api_message` is cleaned the same way.
   Bodies are read up to 32 MiB.
 - Redirects are never followed (Pi-hole's own HTTP→HTTPS redirect points at `webserver.domain` without the port, and following could leak credentials).
   A redirect from `http://` to `https://` raises `ConnectionFailed` suggesting the `https://` URL; other redirects raise `APIError`.
-- `timeout` bounds every socket operation and also the host-name lookup (urllib doesn't; the client resolves names in a helper thread so a dead DNS server can't stall a shell start).
+- `timeout` bounds each request's *total* time, not each socket operation: the host-name lookup, TCP connect, waiting for the TLS handshake turn, the handshake, and reading the status line, headers and body all share one deadline, so a server that drips a byte now and then, or stalls TLS handshakes, can't stretch it.
+  urllib doesn't bound the lookup; the client resolves names in a helper thread so a dead DNS server can't stall a shell start.
+  `_send` puts the deadline (a `time.monotonic()` value) on the urllib `Request` as `request.deadline`; the connection classes set the socket timeout to the time left before each wait, and the response is read through a reader that gives up at the deadline (`ConnectionFailed` "no response from … within Ns").
+  With several addresses, each connect attempt gets an equal share of the time left. Connections use the full socket address, so link-local IPv6 URLs with a zone (`http://[fe80::1%eth0]`) work.
+  A GET's one retry and a login's rate-limit retries (delays included) stay within the same `timeout`, and error messages quote the configured `timeout`. `timeout` must be > 0 and at most `MAX_TIMEOUT` (3600 s); otherwise `ConfigError`.
   Non-ASCII characters in reverse-proxy sub-paths are percent-encoded; `user:pass@` in a URL is never echoed in error messages.
 - Network errors map to `ConnectionFailed` with hints (timeout, DNS, refused, reset — "use https://?"); certificate failures to `TLSError` (hint: `--ca-cert` with `/etc/pihole/tls_ca.crt`, or `--insecure`; a separate hint for hostname mismatches, since Pi-hole's certificate is issued for `webserver.domain`); other TLS handshake failures to `TLSError` ("this port doesn't seem to speak HTTPS").
 - TLS: `verify=True` uses the system CA store, a path a CA file (or a directory of hashed certificates).
   For every verifying context (system store included, since users may import Pi-hole's CA there) the client clears `ssl.VERIFY_X509_STRICT` (the default since Python 3.13), because the CA that Pi-hole generates lacks the key usage extension; chain and host name checks stay on.
 - TLS handshakes take turns (a process-wide lock in the HTTPS connection's `connect()`; TCP connects and requests stay parallel), because Pi-hole FTL v6.5 fails parallel handshakes and can crash on them (see [Pi-hole compatibility](compatibility.md#tls)).
+  Waiting for the turn counts against the request's `timeout` (`acquire(timeout=time left)`), so requests queued behind a stalled handshake time out together instead of one after another.
   A GET whose connection drops before any reply (TLS EOF, reset) is retried once; logins (POST) never are.
 - No connection pooling or keep-alive, on purpose: every request uses a new connection, and the fetches run in parallel.
   Since FTL v6.1, Pi-hole's web server leaves Nagle's algorithm on, so every reused request arrives about 40 ms late; `TCP_NODELAY` on the client can't fix that, only `webserver.advancedOpts = ["tcp_nodelay=1"]` on the Pi-hole can (see [Pi-hole compatibility](compatibility.md#keep-alive)).
@@ -498,7 +510,7 @@ password = "app-password"             # or exactly one of:
 # password_file = "~/.config/pihello/password"
 # password_command = "pass show pihole"            # or ["pass", "show", "pihole"]
 verify_tls = true                     # true | false | "/path/to/ca.pem"
-timeout = 3.0
+timeout = 3.0                         # > 0, at most 3600 (MAX_TIMEOUT)
 preset = "default"                    # or: template = "~/.config/pihello/greeting.txt"
 theme = "default"
 color = "auto"                        # auto | always | never | 16 | 256 | truecolor
@@ -557,7 +569,7 @@ class ConfigFile:      # path, exists, settings, styles, profiles, profile_style
 @dataclass(frozen=True)
 class Credential:      # kind: "password" | "file" | "command" | "stdin"; value hidden from repr
     origin: str
-    def describe(self) -> str     # never reveals the password
+    def describe(self) -> str     # never reveals the password; a command only by its program
     def obtain(self, *, stdin: TextIO | None = None) -> str
 
 @dataclass(frozen=True)
@@ -579,12 +591,15 @@ class Settings:
 ```
 
 `run_password_command`: a list is executed directly; a string is split with `shlex` and executed directly unless it contains shell syntax (`| & ; < > ( ) $ \` * ?
-[ ] { } ~ ! #` or a newline), then it runs through `/bin/sh -c` (`cmd /c` on Windows). The command inherits stdin (pinentry works), stdout/stderr are captured, it is killed after the timeout, and the first line of stdout (stripped) is the password; a non-zero exit is a `ConfigError` quoting the last stderr line.
+[ ] { } ~ ! #` or a newline), then it runs through `/bin/sh -c` (`cmd /c` on Windows).
+On Windows a string without shell syntax goes to `CreateProcess` unchanged, which splits it by the Windows rules (`shlex` would keep the quotes of `"C:\Program Files\…\bw.exe"` in the words, and `subprocess` would quote them again).
+The command inherits stdin (pinentry works), stdout/stderr are captured, it is killed after the timeout, and the first line of stdout (stripped) is the password; a non-zero exit is a `ConfigError` quoting the last stderr line.
+Its messages and `Credential.describe()` name only the program (`password_command (bw …)`), never the arguments, which may hold a token.
 
 ## Command line (`pihello.cli`)
 
 `main(argv: Sequence[str] | None = None) -> int`.
-When the first argument is not a known subcommand, `show` is implied, so `pihello` alone renders the greeting from config; options before the command name (`pihello --config x doctor`) are re-dispatched to that command.
+When the first argument is not a known subcommand, `show` is implied, so `pihello` alone renders the greeting from config; options before the command name (`pihello --config x doctor`, `pihello -q vars queries`) are re-dispatched to that command, so a command name is never taken as the 1.x ADDR (and looked up as a host) unless it comes after `--`.
 `build_parser(command="show")` returns a fresh parser per command; `COMMANDS` maps command names to their one-line descriptions (also used by the completion scripts).
 
 | Command | Description |
@@ -601,14 +616,18 @@ When the first argument is not a known subcommand, `show` is implied, so `pihell
 pihello 1.x invocations keep working: `pihello ADDR [PASSWORD] [-f FILE] [-p] [-k] [-ts [FMT]] [-W N] [-H N] [-c] [-i N]`.
 A positional password prints a warning (it leaks into shell history and `ps`), suppressed by `-q`.
 With ADDR and no configured template, the `classic` preset (the exact 1.x look) is used.
-`-p` upgrades ADDR, `--url` or the configured URL to `https://`.
+`-p` normalises ADDR, `--url` or the configured URL first and then sets its scheme to `https`, so no spelling of `http://` (`HTTP://`, leading spaces) gets the password sent unencrypted.
 
 Notes:
 
 - Imports are lazy: the show path never imports the wizard, doctor or completion code, and `--demo` never imports the HTTP client.
   The password is only obtained when a request is about to be made.
-- `UI` writes pihello's own messages to stderr, honours `-q` and `NO_COLOR`, and redacts every registered secret (≥ 4 characters) from messages and `--debug` log lines.
-- A fetch problem leaves its namespaces missing (logged with `--debug`); when *every* planned source failed with something other than `EndpointNotFound`, the first error is raised.
+- `UI` writes pihello's own messages to stderr and honours `NO_COLOR` and `-q`; with `-q`, errors with exit status 2 (`ConfigError`, `TemplateError`: mistakes in the command line, config or template) are still printed, warnings and errors with exit status 3–5 aren't.
+  `UI.clean()` redacts every registered secret (≥ 4 characters) and then removes terminal controls (escape sequences, other C0 and C1 controls, bidi controls, via `pihello.template.sanitize`) from every message and `--debug` log line, because messages quote Pi-hole data.
+- `vars` prints string values JSON-quoted with those controls escaped; `vars --json` escapes C1 and bidi controls as `\uXXXX` too (JSON itself only escapes C0).
+- A fetch problem leaves its namespaces missing (logged with `--debug`).
+  An `APIError` (including `EndpointNotFound`, or `500 internal_error` while FTL starts) means the Pi-hole answered: it never ends the run, even when its source was the only one.
+  Only when *every* planned source failed with `ConnectionFailed` is the first error raised; an `AuthenticationError` always is.
   With `strict`, any fetch problem is an error.
 - `--watch` uses one client and session, redraws on SIGWINCH, uses the alternate screen on a TTY, keeps the last data on connection errors and stops on `AuthenticationError` (other than `TooManySessions`).
 
@@ -639,7 +658,8 @@ Nothing is written before the last step; an existing config needs confirmation (
 Each check prints one line (`✓`, `!`, `✗`, `·`, or ASCII when stdout can't encode them) plus a hint.
 A failure that makes later checks pointless stops the run.
 Exit status: 0 with only warnings, else the exit code of the first failure.
-Output goes through the UI's redaction.
+Every line goes through `UI.clean()`; URLs are shown without user info (`http://***@pi.hole`) and a `password_command` only by its program, so the output can be shared.
+The update line follows `updates.status` (`available`, `current`, `unknown`), like the template variables.
 
 ## Shell completion (`pihello.completion`)
 

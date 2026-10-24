@@ -355,7 +355,8 @@ def test_password_command_store(
         answers("command", bad, command, "", "", "", "", "", ""),
     )
     assert code == 0, out
-    assert "password_command failed" in out
+    assert "password_command (python" in out
+    assert "failed with exit status 1" in out
     assert read_config(cfg)["password_command"] == command
     assert "conf.d/pihello.fish" in out
 

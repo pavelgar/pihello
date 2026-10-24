@@ -237,7 +237,7 @@ It checks every step from the config file to the API session and says what to do
 <details>
 <summary>Nothing appears in new shells</summary>
 
-That's `-q` hiding an error.
+That's `-q` hiding an error: it hides connection, login and API errors and a failing `password_command` (a locked password manager), though not mistakes in the config file or a template.
 Run `pihello` without `-q` to see it.
 
 </details>

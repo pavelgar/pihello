@@ -44,7 +44,7 @@ pihello --style 'accent=bold #ff8800'                   # restyle one theme styl
 pihello -u https://pi.hole -k                           # another Pi-hole, self-signed certificate
 pihello -ts '%H:%M'                                     # print the time first
 pihello -W 0                                            # don't wrap long lines
-pihello -q                                              # never print errors (for startup files)
+pihello -q                                              # no errors when the Pi-hole is offline (startup files)
 ```
 
 ### Errors and quiet mode
@@ -59,6 +59,8 @@ hint: Pi-hole may be down or overloaded; raise the limit with --timeout (or `tim
 
 `-q` is for shell startup files: when the Pi-hole is unreachable, the shell opens without an error message.
 The [exit status](#exit-status) still tells what went wrong.
+Mistakes in the command line, the config file or a template (exit status 2) are printed anyway, so you notice them; warnings aren't.
+The exception is a `password_command` that fails, times out or prints nothing, which usually means a locked password manager: `-q` keeps that quiet too.
 [Troubleshooting](troubleshooting.md) explains the common messages.
 
 `--debug` shows what pihello does and how long each step takes: the endpoints it fetches, the login, the cache, the rendering.
@@ -154,7 +156,7 @@ Paths on the command line are relative to the current directory.
 | `--cache SECONDS` | `cache_ttl` | Reuse data fetched less than SECONDS ago |
 | `--no-cache` | `cache_ttl = 0` | Always fetch fresh data |
 | `--watch [SECONDS]` | | Live view, refreshed every SECONDS (default 5) |
-| `-q`, `--quiet` | | Print no errors or warnings; only the exit status tells |
+| `-q`, `--quiet` | | Print no warnings, and no errors except mistakes (exit status 2); the exit status still tells |
 | `--debug` | | Log HTTP requests, timings and problems to stderr |
 | `-h`, `--help` | | Show the help |
 | `-v`, `-V`, `--version` | | Show the version |
@@ -167,7 +169,10 @@ These keep 1.x command lines working; [Upgrading from 1.x](upgrading.md) has the
 | :-- | :-- | :-- |
 | `ADDR` | `url` | Host or `host:port`, as the first argument. On its own (without PASSWORD) it must contain a `.` or `:` or be `localhost`, so a mistyped command isn't looked up as a host; use `-u NAME` for single-label names. |
 | `PASSWORD` | `password` | Second argument. Deprecated: it leaks into shell history and `ps`. |
-| `-p`, `--https`, `--proto` | | Use `https://` for ADDR, `--url` or the configured URL |
+| `-p`, `--https`, `--proto` | | Use `https://` for ADDR, `--url` or the configured URL, whatever scheme it has |
+
+Options can come before a command: `pihello -q vars queries` is `pihello vars -q queries`, not ADDR `vars` with PASSWORD `queries`.
+Put `--` first for a Pi-hole whose name is a command: `pihello -- doctor`.
 
 ## `pihello init`
 
@@ -322,6 +327,7 @@ top_domains.1.domain  "www.google.com"                 Domain name
 ```
 
 `--json` prints the data as JSON for scripts: the whole nested tree, or a flat `{"path": value}` object when you give a pattern.
+Control and text-direction characters in the data come out escaped (`\u009b`, `\u202e`), so the JSON is safe to print on a terminal.
 
 ```console
 $ pihello vars --demo --json | jq '.queries.percent_blocked'
@@ -460,5 +466,6 @@ PowerShell completion isn't available.
 | 130 | Interrupted with <kbd>Ctrl</kbd>+<kbd>C</kbd> (`--watch` exits with 0) |
 | 129, 143 | Ended by SIGHUP (terminal closed) or SIGTERM; pihello still logs out first |
 
-With `-q`, runtime errors and warnings aren't printed (mistakes on the command line still are), but the exit status is the same.
+With `-q`, warnings and the errors with exit status 3, 4 and 5 aren't printed, but the exit status is the same.
+Errors with exit status 2 are mistakes to fix, so `-q` still prints them, except a `password_command` that fails, times out or prints nothing.
 `pihello doctor` exits with the code of the first failed check.

@@ -1,9 +1,10 @@
 """A fake Pi-hole v6 API server for tests.
 
 :class:`FakePihole` is a threaded stdlib :mod:`http.server` bound to
-``127.0.0.1`` on a random port. It replays a recorded fixture set
-(``tests/fixtures/pihole/<docker-tag>/responses.json``) and emulates the parts
-of Pi-hole that matter to pihello, verified against real Pi-hole containers:
+``127.0.0.1`` (or ``host=``, e.g. ``"::1"``) on a random port. It replays a
+recorded fixture set (``tests/fixtures/pihole/<docker-tag>/responses.json``)
+and emulates the parts of Pi-hole that matter to pihello, verified against real
+Pi-hole containers:
 
 - ``POST /api/auth``: correct password → new random ``sid`` (base64 with ``+``,
   ``/`` and ``=``); wrong password → recorded ``401``; ``password=None`` →
@@ -49,9 +50,11 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import io
 import json
 import os
 import shutil
+import socket
 import socketserver
 import ssl
 import tempfile
@@ -367,6 +370,7 @@ class _Fault:
     drop: bool
     headers: dict[str, str] = field(default_factory=dict)
     times: int | None = None
+    drip: float = 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -381,12 +385,15 @@ class _Server(ThreadingHTTPServer):
     def __init__(self, fake: FakePihole, context: ssl.SSLContext | None) -> None:
         self.fake = fake
         self.ssl_context = context
-        super().__init__(("127.0.0.1", 0), _Handler)
+        self.address_family = socket.AF_INET6 if ":" in fake.host else socket.AF_INET
+        # getaddrinfo turns "fe80::1%eth0" into the (address, port, flow, scope) bind() needs.
+        info = socket.getaddrinfo(fake.host, 0, self.address_family, socket.SOCK_STREAM)
+        super().__init__(info[0][4], _Handler)
 
     def server_bind(self) -> None:
         # Skip HTTPServer's socket.getfqdn() reverse lookup (slow on some hosts).
         socketserver.TCPServer.server_bind(self)
-        self.server_name = "127.0.0.1"
+        self.server_name = self.fake.host
         self.server_port = int(self.server_address[1])
 
     def finish_request(self, request: Any, client_address: Any) -> None:
@@ -415,6 +422,7 @@ class _Handler(BaseHTTPRequestHandler):
     sys_version = ""
     timeout = 10
     server: _Server
+    drip = 0.0  # seconds between the reply's bytes (see FakePihole.fail)
 
     def log_message(self, format: str, *args: Any) -> None:
         pass
@@ -463,12 +471,15 @@ class FakePihole:
         login_rate_limit: int | None = None,
         totp_rate_limit: bool = False,
         app_password: str | None = None,
+        host: str = "127.0.0.1",
     ) -> None:
         """Prepare (but don't start) a server for ``fixture`` (see :func:`load_fixture`).
 
         ``login_rate_limit`` is the number of password checks allowed per
         wall-clock second (real Pi-hole: 3; ``None`` = unlimited);
         ``totp_rate_limit`` allows one TOTP attempt per 30-second window.
+        ``host`` is the address to listen on: ``"::1"`` for IPv6, or a link-local
+        address with its zone (``"fe80::1%eth0"``).
         """
         loaded = load_fixture(fixture)
         self.fixture = str(fixture)
@@ -483,6 +494,7 @@ class FakePihole:
         self.login_rate_limit = login_rate_limit
         self.totp_rate_limit = totp_rate_limit
         self.app_password = app_password
+        self.host = host
         self.clock: Callable[[], float] = time.time
         """Wall clock used by the rate limits (replace it to make tests deterministic)."""
         self.rate_limit_delay = 0.25
@@ -508,7 +520,8 @@ class FakePihole:
         if self._server is None:
             raise RuntimeError("FakePihole is not running; call start() first")
         scheme = "https" if self.https else "http"
-        return f"{scheme}://127.0.0.1:{self.port}"
+        host = f"[{self.host}]" if ":" in self.host else self.host
+        return f"{scheme}://{host}:{self.port}"
 
     @property
     def port(self) -> int:
@@ -599,6 +612,7 @@ class FakePihole:
         drop: bool = False,
         headers: Mapping[str, str] | None = None,
         times: int | None = None,
+        drip: float = 0.0,
     ) -> None:
         """Inject a fault for requests to ``endpoint`` (``"stats/summary"``, ``"POST auth"``).
 
@@ -610,12 +624,17 @@ class FakePihole:
         - ``drop``: close the connection without any response.
         - ``headers``: extra response headers (e.g. ``Location`` for redirects).
         - ``times``: only fail this many times (``None`` = until :meth:`clear_faults`).
+        - ``drip``: send the reply (status line, headers and body) one byte at a
+          time, waiting this many seconds before each (a server that stays just
+          below any per-read timeout); interrupted by :meth:`stop`.
 
         Without a method in ``endpoint`` the fault applies to every method; without
         a query it applies to every query string.
         """
         method, path, query, _ = _split_key(endpoint)
-        fault = _Fault(method, path, query, status, delay, raw, drop, dict(headers or {}), times)
+        fault = _Fault(
+            method, path, query, status, delay, raw, drop, dict(headers or {}), times, drip
+        )
         with self._lock:
             self._faults.append(fault)
 
@@ -655,6 +674,7 @@ class FakePihole:
             self.requests.append(request)
             fault = self._take_fault(method, request.endpoint, query)
 
+        handler.drip = fault.drip if fault is not None else 0.0
         if fault is not None:
             if fault.delay > 0:
                 self._stopping.wait(fault.delay)
@@ -998,6 +1018,9 @@ class FakePihole:
             payload = b""
         else:
             payload = json.dumps(body).encode("utf-8")
+        wfile = handler.wfile
+        if handler.drip > 0:
+            handler.wfile = io.BytesIO()  # collect the reply, then drip it out below
         try:
             handler.send_response(status)
             if payload:
@@ -1010,6 +1033,14 @@ class FakePihole:
             handler.end_headers()
             if payload:
                 handler.wfile.write(payload)
+            if isinstance(handler.wfile, io.BytesIO):
+                reply, handler.wfile = handler.wfile.getvalue(), wfile
+                for index in range(len(reply)):
+                    if self._stopping.wait(handler.drip):
+                        break
+                    wfile.write(reply[index : index + 1])
         except OSError:
             pass
+        finally:
+            handler.wfile = wfile
         handler.close_connection = True

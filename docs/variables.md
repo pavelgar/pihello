@@ -230,7 +230,7 @@ From `GET /api/info/sensors`.
 
 | Path | Type | Description | Example |
 | :-- | :-- | :-- | :-- |
-| `sensors.list` | `list` | Temperature sensors found on the host (may be empty, e.g. FTL v6.6 or older in a container) | `[3 items]` |
+| `sensors.list` | `list` | Temperature sensors found on the host (may be empty, e.g. in a container with FTL v6.7.0 or older) | `[3 items]` |
 | `sensors.list.N.name` | `str` | Sensor driver name (e.g. "cpu_thermal", "k10temp") | `"cpu_thermal"` |
 | `sensors.list.N.path` | `str` | Short sysfs path of the sensor (e.g. "hwmon0") | `"hwmon0"` |
 | `sensors.list.N.source` | `str` | Device the sensor belongs to (sysfs path) | `"devices/virtual/thermal/thermal_zone0"` |
@@ -240,7 +240,7 @@ From `GET /api/info/sensors`.
 | `sensors.list.N.temps.N.max` | `float` | Maximum temperature in sensors.unit (null if unknown) | `null` |
 | `sensors.list.N.temps.N.crit` | `float` | Critical temperature in sensors.unit (null if unknown) | `110` |
 | `sensors.list.N.temps.N.sensor` | `str` | Reading id (e.g. "temp1") | `"temp1"` |
-| `sensors.cpu_temp` | `float` | CPU temperature in sensors.unit (best guess); null if FTL found no CPU sensor (always in containers before FTL v6.7) | `52.1` |
+| `sensors.cpu_temp` | `float` | CPU temperature in sensors.unit (best guess); null if FTL found no CPU sensor (always in containers before FTL v6.7.1) | `52.1` |
 | `sensors.hot_limit` | `float` | Temperature above which Pi-hole considers the CPU hot, in sensors.unit | `60` |
 | `sensors.unit` | `str` | Temperature unit: "C", "F" or "K" | `"C"` |
 
@@ -322,7 +322,7 @@ From `GET /api/info/database`.
 | `database.owner.user.info` | `str` | GECOS info of the owning user | `""` |
 | `database.owner.group.gid` | `int` | Group ID owning the database file | `999` |
 | `database.owner.group.name` | `str` | Group name owning the database file | `"pihole"` |
-| `database.queries` | `int` | Queries held in FTL's in-memory database | `48220` |
+| `database.queries` | `int` | Queries held in FTL's in-memory database; before FTL v6.4, in the on-disk database | `48220` |
 | `database.earliest_timestamp` | `timestamp` | Oldest query in the in-memory database; 0 if empty (FTL v6.4+) | `1792744204` |
 | `database.queries_disk` | `int` | Queries stored in the on-disk database (FTL v6.4+) | `3461702` |
 | `database.earliest_timestamp_disk` | `timestamp` | Oldest query in the on-disk database; 0 if empty (FTL v6.4+) | `1784968227` |

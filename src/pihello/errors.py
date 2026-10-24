@@ -36,6 +36,14 @@ class ConfigError(PiHelloError):
     exit_code = EXIT_USAGE
 
 
+class PasswordUnavailable(ConfigError):
+    """``password_command`` ran but gave no password: it failed, timed out or printed nothing.
+
+    Usually a runtime condition (a locked password manager) rather than a
+    mistake, so ``-q`` keeps it quiet like an unreachable Pi-hole.
+    """
+
+
 class TemplateError(PiHelloError):
     """A template could not be parsed or rendered.
 

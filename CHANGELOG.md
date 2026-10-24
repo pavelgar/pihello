@@ -29,6 +29,11 @@ pihello 1.x command lines and templates keep working; see [Upgrading from 1.x](d
 - Colors adapt to the terminal (24-bit, 256 or 16 colors, none when piped); `--color`, `NO_COLOR` and `FORCE_COLOR`.
 - Distinct exit codes: 2 usage/config/template, 3 unreachable, 4 authentication, 5 unexpected API response.
 - `python -m pihello`; type information (`py.typed`).
+- Built for shell startup files:
+  - `-q` hides runtime problems (Pi-hole unreachable, login and API errors, a locked password manager) but still shows mistakes in the command line, config file or a template.
+  - `--timeout` (default 3 s, at most 3600) limits each request's total time, including name lookup, TLS and a slowly answering server.
+  - Text from Pi-hole is cleaned of terminal escape sequences and invisible or text-reordering characters before it's shown.
+- Workarounds for Pi-hole quirks: login rate limiting is retried, a dropped connection is retried once for read-only requests, and TLS handshakes take turns, because FTL v6.5 can crash on parallel ones.
 
 ### Changed
 

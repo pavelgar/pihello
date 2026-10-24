@@ -8,7 +8,9 @@ are only warnings, else the exit code of the first failure.
 
 The password is never printed: settings are shown via
 :meth:`pihello.config.Credential.describe` and every line goes through the
-UI's redaction filter.
+UI's redaction filter. URLs are shown without user info, and the text of every
+line (which may quote Pi-hole data) is cleaned of terminal controls
+(:meth:`pihello.cli.UI.clean`).
 """
 
 from __future__ import annotations
@@ -135,9 +137,9 @@ class Doctor:
         symbol, code = _SYMBOLS[status]
         mark = symbol if self.unicode else _ASCII[status]
         timing = self._paint(f" ({elapsed * 1000:.0f} ms)", "2") if elapsed is not None else ""
-        self._write(f"  {self._paint(mark, code)} {text}{timing}")
+        self._write(f"  {self._paint(mark, code)} {self.ui.clean(text)}{timing}")
         if hint:
-            self._write(f"      {self._paint('hint:', '36')} {hint}")
+            self._write(f"      {self._paint('hint:', '36')} {self.ui.clean(hint)}")
         if status == "fail":
             self.failures += 1
             if self.exit_code == EXIT_OK:
@@ -258,8 +260,9 @@ class Doctor:
     def _print_settings(self, settings: Settings) -> None:
         template = settings.template.describe()
         credential = settings.credential.describe() if settings.credential else "none"
+        url = _redact_url(settings.url) if settings.url else "(not set)"
         rows = [
-            ("url", settings.url or "(not set)", settings.origins.get("url", "default")),
+            ("url", url, settings.origins.get("url", "default")),
             ("password", credential, settings.origins.get("password", "not set")),
             ("verify_tls", _show(settings.verify_tls), settings.origins.get("verify_tls", "")),
             ("timeout", f"{settings.timeout:g} s", settings.origins.get("timeout", "")),
@@ -277,7 +280,10 @@ class Doctor:
             )
         # The file's path is on the "config file" line above; don't repeat it per row.
         in_file = f" ({settings.config.path})"
-        rows = [(key, value, origin.replace(in_file, "")) for key, value, origin in rows]
+        clean = self.ui.clean
+        rows = [
+            (key, clean(value), clean(origin.replace(in_file, ""))) for key, value, origin in rows
+        ]
         self.report("info", "effective settings (value — where it comes from):")
         key_w = max(len(r[0]) for r in rows)
         origin_w = max(len(r[2]) for r in rows)
@@ -308,13 +314,13 @@ class Doctor:
         try:
             url = normalize_url(settings.url)
         except PiHelloError as exc:
-            self.fatal(f"address {settings.url!r}", exc)
+            self.fatal(f"address {_redact_url(settings.url)!r}", exc)
         parts = urlsplit(url)
         self.ctx.url = url
         self.ctx.host = parts.hostname or ""
         self.ctx.https = parts.scheme == "https"
         self.ctx.port = parts.port or (443 if self.ctx.https else 80)
-        note = f" (from {settings.url!r})" if url != settings.url else ""
+        note = f" (from {_redact_url(settings.url)!r})" if url != settings.url else ""
         self.report("ok", f"address {url}{note}; API at {url}/api")
 
     def check_dns(self) -> None:
@@ -563,7 +569,7 @@ class Doctor:
         labels = {"core": "core", "web": "web", "ftl": "FTL", "docker": "docker"}
         parts: list[str] = []
         upgrades: list[str] = []
-        statuses: list[bool | None] = []
+        outdated = updates.get("components") or ()
         for name, label in labels.items():
             entry = version.get(name)
             if not isinstance(entry, dict):
@@ -574,8 +580,7 @@ class Doctor:
             if not local:
                 continue
             parts.append(f"{label} {local}")
-            statuses.append(entry.get("update"))
-            if name in (updates.get("components") or ()):
+            if name in outdated:
                 upgrades.append(f"{label} {local} → {remote}")
         self.report("ok" if parts else "warn", "Pi-hole " + (", ".join(parts) or "version unknown"))
         core = ((version.get("core") or {}).get("local") or {}).get("version") or ""
@@ -588,25 +593,28 @@ class Doctor:
                 if major < SUPPORTED_MAJOR
                 else "newer major versions are untested; please report problems",
             )
-        if upgrades:
+        # The same verdict as the updates.* variables (in Docker only the image counts).
+        status = updates.get("status")
+        if status == "available":
             # version.docker exists on every install; only Docker fills in the image tag
             in_docker = isinstance((version.get("docker") or {}).get("local"), str)
+            shown = upgrades or [labels.get(name, name) for name in outdated]
             self.report(
                 "info",
-                "update available: " + ", ".join(upgrades),
+                "update available: " + ", ".join(shown),
                 hint="pull the new image and recreate the container"
                 if in_docker
                 else "update with `pihole -up`",
             )
-        elif statuses and all(status is None for status in statuses):
+        elif status == "current":
+            self.report("ok", "up to date")
+        else:
             self.report(
                 "info",
                 "update status unknown",
                 hint="Pi-hole has not checked for updates yet (it does so daily, "
                 "or run `pihole updatechecker`)",
             )
-        else:
-            self.report("ok", "up to date")
 
     def check_sources(self) -> None:
         """Fetch every data source and report which ones are unavailable."""
@@ -739,6 +747,13 @@ def _duration(seconds: float) -> str:
 def _major(version: str) -> int | None:
     digits = version.lstrip("vV").split(".", 1)[0]
     return int(digits) if digits.isdigit() else None
+
+
+def _redact_url(url: str) -> str:
+    """``url`` with any ``user:password@`` hidden (pihello rejects such URLs anyway)."""
+    from pihello.client import _redact_userinfo  # noqa: PLC0415
+
+    return _redact_userinfo(url)
 
 
 def _show(value: Any) -> str:

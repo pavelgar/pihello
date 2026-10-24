@@ -172,6 +172,8 @@ good = "green"
         ("timeout = 0", "timeout"),
         ("timeout = true", "timeout"),
         ("timeout = 'fast'", "timeout"),
+        ("timeout = 1e300", "at most 3600"),
+        ("timeout = 3601", "at most 3600"),
         ("height = -1", "height"),
         ("height = 1.5", "height"),
         ("width = 'wide'", "width"),
@@ -539,16 +541,17 @@ def test_password_command_with_shell_syntax() -> None:
     assert config.run_password_command("echo piped | tr a-z A-Z") == "PIPED"
 
 
-def test_password_command_failures() -> None:
+def test_password_command_failures(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(ConfigError, match="exit status 3: boom") as info:
         config.run_password_command(py("import sys; sys.stderr.write('boom\\n'); sys.exit(3)"))
-    assert "try running it yourself" in (info.value.hint or "")
+    assert "run it yourself" in (info.value.hint or "")
     with pytest.raises(ConfigError, match="printed nothing"):
         config.run_password_command(py("pass"))
     with pytest.raises(ConfigError, match="not found"):
         config.run_password_command("definitely-not-a-command-xyz")
     with pytest.raises(ConfigError, match="timed out"):
         config.run_password_command(py("import time; time.sleep(5)"), timeout=0.2)
+    monkeypatch.setattr(config, "_WINDOWS", False)  # Windows doesn't split the string
     with pytest.raises(ConfigError, match="No closing quotation"):
         config.run_password_command('echo "unterminated')
 
@@ -570,10 +573,91 @@ def test_password_command_empty_string() -> None:
 
 
 def test_credential_describe_command() -> None:
-    assert config.Credential("command", ("pass", "show", "x")).describe() == (
-        "password_command 'pass show x'"
+    # Only the program: arguments may hold a secret (`--session TOKEN`), and
+    # `pihello doctor` output is meant to be shared.
+    def describe(command: str | tuple[str, ...]) -> str:
+        return config.Credential("command", command).describe()
+
+    assert describe(("pass", "show", "x")) == "password_command (pass …)"
+    assert describe(("/usr/local/bin/rbw",)) == "password_command (rbw)"
+    assert describe("bw get password pihole --session SECRET") == "password_command (bw …)"
+    assert describe('"C:\\Program Files\\Bitwarden CLI\\bw.exe" get password pihole') == (
+        "password_command (bw.exe …)"
     )
+    assert describe("BW_SESSION=SECRET bw get password pihole") == "password_command (bw …)"
+    assert describe("pass show pihole | head -n 1") == "password_command (pass …)"
     assert config.Credential("password", "pw").describe() == "set (hidden)"
+
+
+def test_password_command_errors_do_not_show_the_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "_WINDOWS", False)  # Windows doesn't split strings
+    with pytest.raises(ConfigError) as info:
+        config.run_password_command(py("import sys; sys.exit(3)  # ARG-SECRET"))
+    assert "ARG-SECRET" not in f"{info.value} {info.value.hint}"
+    with pytest.raises(ConfigError) as info:
+        config.run_password_command([*py("pass"), "ARG-SECRET"])
+    assert "printed nothing" in str(info.value)
+    assert "ARG-SECRET" not in f"{info.value} {info.value.hint}"
+    with pytest.raises(ConfigError) as info:
+        config.run_password_command('echo "ARG-SECRET')
+    assert "No closing quotation" in str(info.value)
+    assert "ARG-SECRET" not in f"{info.value} {info.value.hint}"
+    with pytest.raises(ConfigError, match="not found: 'definitely-not-a-command-xyz'") as info:
+        config.run_password_command("definitely-not-a-command-xyz ARG-SECRET")
+    assert "ARG-SECRET" not in f"{info.value} {info.value.hint}"
+
+
+class _Recorder:
+    """Stands in for ``subprocess.run`` and records what it was given."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[Any, dict[str, Any]]] = []
+
+    def __call__(self, args: Any, **kwargs: Any) -> Any:
+        import subprocess
+
+        self.calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args, 0, b"pw\n", b"")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        '"C:\\Program Files\\Bitwarden CLI\\bw.exe" get password pihole',
+        'op read "op://Private/Pi-hole/app password"',
+    ],
+)
+def test_password_command_string_is_passed_unchanged_on_windows(
+    command: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CreateProcess parses the command line itself; splitting it first keeps the
+    # quotes in the words, which subprocess then quotes again.
+    import subprocess
+
+    recorder = _Recorder()
+    monkeypatch.setattr(config, "_WINDOWS", True)
+    monkeypatch.setattr(subprocess, "run", recorder)
+    assert config.run_password_command(command) == "pw"
+    assert recorder.calls[-1][0] == command
+    assert recorder.calls[-1][1]["shell"] is False
+    # lists are still passed as lists, shell syntax still goes through the shell
+    config.run_password_command(["bw", "get", "password", "pihole"])
+    assert recorder.calls[-1][0] == ["bw", "get", "password", "pihole"]
+    config.run_password_command("bw get password pihole | more")
+    assert recorder.calls[-1][1]["shell"] is True
+
+
+def test_password_command_string_is_split_on_posix(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    recorder = _Recorder()
+    monkeypatch.setattr(config, "_WINDOWS", False)
+    monkeypatch.setattr(subprocess, "run", recorder)
+    config.run_password_command('op read "op://Private/Pi-hole/app password"')
+    assert recorder.calls[-1][0] == ["op", "read", "op://Private/Pi-hole/app password"]
+    assert recorder.calls[-1][1]["shell"] is False
 
 
 # --------------------------------------------------------------------------- #
@@ -665,3 +749,10 @@ def test_write_private_cleans_up_on_error(tmp_path: Path, monkeypatch: pytest.Mo
     with pytest.raises(OSError, match="disk full"):
         config.write_private(tmp_path / "x.toml", "a = 1\n")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_timeout_cap_matches_the_client() -> None:
+    # config doesn't import the client (keeps `--demo` light), so keep the two in sync here.
+    from pihello import client
+
+    assert config.MAX_TIMEOUT == client.MAX_TIMEOUT

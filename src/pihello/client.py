@@ -20,8 +20,15 @@ Networking notes
   rarely reachable, and following redirects could leak the password or session
   id to another host. A redirect to HTTPS raises :class:`ConnectionFailed`
   suggesting an ``https://`` URL instead.
-- The timeout also bounds host name resolution, which urllib's timeout doesn't
-  cover (see :func:`_resolve`).
+- The timeout bounds each request's *total* time, not each socket operation:
+  host name resolution (which urllib's timeout doesn't cover, see
+  :func:`_resolve`), connecting, waiting for a turn to hand-shake TLS, the
+  handshake and reading the reply all share one deadline (see
+  :meth:`PiholeClient._send`), so a server that sends a byte now and then can't
+  keep a shell start waiting.
+- Text from the server (Pi-hole's error messages, redirect targets, reason
+  phrases) is stripped of escape sequences and control characters before it goes
+  into an error message (see :func:`_clean`).
 - The heavy modules (:mod:`urllib.request`, :mod:`ssl`) are imported on first
   use so that importing this module stays cheap.
 """
@@ -29,9 +36,9 @@ Networking notes
 from __future__ import annotations
 
 import functools
+import io
 import json
 import logging
-import math
 import re
 import threading
 import time
@@ -64,6 +71,7 @@ __all__ = [
     "DEFAULT_TIMEOUT",
     "LOGIN_RATE_LIMIT_RETRIES",
     "LOGOUT_TIMEOUT",
+    "MAX_TIMEOUT",
     "PiholeClient",
     "normalize_url",
 ]
@@ -71,7 +79,10 @@ __all__ = [
 _log = logging.getLogger("pihello")
 
 DEFAULT_TIMEOUT = 5.0
-"""Default per-request timeout in seconds."""
+"""Default time limit for each request, in seconds."""
+
+MAX_TIMEOUT = 3600.0
+"""Longest accepted ``timeout`` (larger values overflow the socket and lock timeouts)."""
 
 LOGOUT_TIMEOUT = 2.0
 """Upper bound for the ``DELETE /api/auth`` request issued by :meth:`PiholeClient.logout`."""
@@ -295,6 +306,18 @@ class _Reply:
         return self._object("session")
 
 
+def _clean(text: object) -> str:
+    """Server-provided ``text`` made safe for a one-line error message.
+
+    Escape sequences and control characters are removed (a hostile or broken
+    server could otherwise retitle or clear the terminal through an error
+    message) and line breaks and tabs become single spaces.
+    """
+    from pihello.template import sanitize  # noqa: PLC0415 - only needed for errors
+
+    return " ".join(sanitize(str(text)).split())
+
+
 def _jitter() -> float:
     """Random delay before retrying a rate-limited login."""
     import random  # noqa: PLC0415 - only needed when rate-limited
@@ -393,27 +416,133 @@ def _resolve(host: str, port: int, timeout: float | None) -> list[Any]:
 _UNSPECIFIED = frozenset({"0.0.0.0", "::"})  # noqa: S104 - compared against, never bound
 
 
-def _connect(
-    address: tuple[str, int], timeout: Any = None, source_address: Any = None
-) -> socket.socket:
-    """``socket.create_connection`` with name resolution bounded by ``timeout``."""
-    import socket  # noqa: PLC0415
+def _remaining(deadline: float | None) -> float | None:
+    """Seconds left until ``deadline`` (a :func:`time.monotonic` value); ``None`` without one."""
+    return None if deadline is None else deadline - time.monotonic()
 
+
+def _arm(sock: socket.socket, deadline: float | None) -> None:
+    """Let the next operation on ``sock`` wait only until ``deadline``.
+
+    Raises :class:`TimeoutError` when it has passed; does nothing without a deadline.
+    """
+    left = _remaining(deadline)
+    if left is not None:
+        if left <= 0:
+            raise TimeoutError("timed out")
+        sock.settimeout(left)
+
+
+def _connect(
+    address: tuple[str, int],
+    timeout: Any = None,
+    source_address: Any = None,
+    *,
+    deadline: float | None = None,
+) -> socket.socket:
+    """``socket.create_connection`` that finishes, name resolution included, by ``deadline``.
+
+    ``deadline`` is a :func:`time.monotonic` value (default: ``timeout`` from
+    now). With several addresses each attempt gets an equal share of the time
+    left, so a black-holed first address (often IPv6) leaves time for the next.
+    The full socket address is used, which keeps the zone of a link-local IPv6
+    address (``http://[fe80::1%eth0]``) that ``create_connection((host, port))``
+    would drop.
+    """
     host, port = address
-    limit = float(timeout) if isinstance(timeout, (int, float)) else None
-    error: OSError | None = None
-    addresses = [sockaddr[0] for *_, sockaddr in _resolve(host, port, limit)]
+    if deadline is None and isinstance(timeout, (int, float)):
+        deadline = time.monotonic() + timeout
+    left = _remaining(deadline)
+    if left is not None and left <= 0:
+        raise _ConnectTimeout("timed out")
+    entries = _resolve(host, port, left)
     # `::` and `0.0.0.0` are DNS answers for "nothing here" (Pi-hole itself blocks
     # that way); connecting to them reaches this machine. Use them only as a last resort.
-    real = [addr for addr in addresses if addr not in _UNSPECIFIED]
-    for addr in real or addresses:
+    real = [entry for entry in entries if entry[4][0] not in _UNSPECIFIED]
+    candidates = real or entries
+    error: OSError | None = None
+    for index, entry in enumerate(candidates):
+        left = _remaining(deadline)
+        if left is not None:
+            if left <= 0:
+                error = _ConnectTimeout("timed out")
+                break
+            left /= len(candidates) - index
         try:
-            return socket.create_connection((addr, port), timeout, source_address)
+            return _open_socket(entry, left, source_address)
         except TimeoutError as exc:
             error = _ConnectTimeout(*exc.args)
         except OSError as exc:
             error = exc
     raise error or OSError(f"no addresses found for {host}")
+
+
+def _open_socket(entry: Any, timeout: float | None, source: Any) -> socket.socket:
+    """Connect a new socket to one ``getaddrinfo`` ``entry`` (as ``create_connection`` does)."""
+    import socket  # noqa: PLC0415
+
+    family, kind, proto, _, sockaddr = entry
+    sock = socket.socket(family, kind, proto)
+    try:
+        if timeout is not None:
+            sock.settimeout(timeout)
+        if source:
+            sock.bind(source)
+        sock.connect(sockaddr)
+    except BaseException:
+        sock.close()
+        raise
+    return sock
+
+
+class _DeadlineReader(io.RawIOBase):
+    """Reads a socket, each read waiting only until ``deadline`` (then :class:`TimeoutError`).
+
+    A socket timeout restarts with every read, so a server that sends a byte now
+    and then would never trip it.
+    """
+
+    def __init__(self, sock: socket.socket, deadline: float) -> None:
+        super().__init__()
+        self._sock = sock
+        self._deadline = deadline
+        # Like HTTPResponse's own sock.makefile(): keeps the socket open until this
+        # reader is closed, even after http.client closes its connection.
+        self._raw = sock.makefile("rb", buffering=0)
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: Any) -> int | None:
+        _arm(self._sock, self._deadline)
+        return self._raw.readinto(buffer)
+
+    def fileno(self) -> int:
+        return self._raw.fileno()
+
+    def close(self) -> None:
+        if not self.closed:
+            self._raw.close()
+        super().close()
+
+
+class _DeadlineSocket:
+    """What :class:`http.client.HTTPResponse` gets as its socket: it only calls ``makefile``."""
+
+    def __init__(self, sock: socket.socket, deadline: float) -> None:
+        self._sock = sock
+        self._deadline = deadline
+
+    def makefile(self, mode: str) -> io.BufferedReader:
+        return io.BufferedReader(_DeadlineReader(self._sock, self._deadline))
+
+
+def _bounded_response(sock: socket.socket, *args: Any, deadline: float, **kwargs: Any) -> Any:
+    """An ``HTTPResponse`` whose status line, headers and body must arrive by ``deadline``."""
+    import http.client  # noqa: PLC0415
+
+    shim = cast("socket.socket", _DeadlineSocket(sock, deadline))
+    return http.client.HTTPResponse(shim, *args, **kwargs)
 
 
 def _dropped_before_reply(exc: BaseException) -> bool:
@@ -452,39 +581,56 @@ _TLS_HANDSHAKE_LOCK = threading.Lock()
 
 @functools.cache
 def _handler_classes() -> tuple[type[Any], type[Any]]:
-    """Build (once, lazily) urllib HTTP/HTTPS handlers whose connections use :func:`_connect`."""
+    """Build (once, lazily) urllib HTTP/HTTPS handlers whose connections keep a deadline.
+
+    :meth:`PiholeClient._send` sets ``request.deadline`` (a :func:`time.monotonic`
+    value); the handlers hand it to the connection, which uses it for every wait:
+    :func:`_connect` (name lookup and TCP connect), the turn to hand-shake TLS and
+    the handshake, and :class:`_DeadlineReader` for the status line, headers and
+    body. Requests without a deadline keep http.client's per-operation timeout.
+    """
     import http.client  # noqa: PLC0415
     import urllib.request  # noqa: PLC0415
 
     class _HTTPConnection(http.client.HTTPConnection):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
+        def __init__(self, *args: Any, deadline: float | None = None, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
-            self._create_connection = _connect
+            self.deadline = deadline
+            self._create_connection = functools.partial(_connect, deadline=deadline)
+            if deadline is not None:
+                self.response_class = functools.partial(  # type: ignore[assignment]
+                    _bounded_response, deadline=deadline
+                )
 
-    class _HTTPSConnection(http.client.HTTPSConnection):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, **kwargs)
-            self._create_connection = _connect
-
+    class _HTTPSConnection(_HTTPConnection, http.client.HTTPSConnection):
         def connect(self) -> None:
             # http.client's own connect(), with the TLS handshake taking turns:
             # Pi-hole FTL up to at least v6.5 fails parallel handshakes and can
             # crash (segfault) on them. The TCP connect and the requests
-            # themselves still run in parallel.
+            # themselves still run in parallel; waiting for the turn counts
+            # against the request's deadline, and so does the handshake.
             http.client.HTTPConnection.connect(self)
             # _tunnel_host and _context are set by http.client (3.10-3.14 alike)
             server_hostname = self._tunnel_host or self.host  # type: ignore[attr-defined]
             context = self._context  # type: ignore[attr-defined]
-            with _TLS_HANDSHAKE_LOCK:
+            left = _remaining(self.deadline)
+            if not _TLS_HANDSHAKE_LOCK.acquire(timeout=-1 if left is None else max(left, 0.0)):
+                raise TimeoutError("timed out waiting for another TLS handshake")
+            try:
+                _arm(self.sock, self.deadline)  # the whole handshake gets what is left
                 self.sock = context.wrap_socket(self.sock, server_hostname=server_hostname)
+            finally:
+                _TLS_HANDSHAKE_LOCK.release()
 
     class _HTTPHandler(urllib.request.HTTPHandler):
         def do_open(self, http_class: Any, req: Any, **kwargs: Any) -> Any:
-            return super().do_open(_HTTPConnection, req, **kwargs)
+            deadline = getattr(req, "deadline", None)
+            return super().do_open(_HTTPConnection, req, deadline=deadline, **kwargs)
 
     class _HTTPSHandler(urllib.request.HTTPSHandler):
         def do_open(self, http_class: Any, req: Any, **kwargs: Any) -> Any:
-            return super().do_open(_HTTPSConnection, req, **kwargs)
+            deadline = getattr(req, "deadline", None)
+            return super().do_open(_HTTPSConnection, req, deadline=deadline, **kwargs)
 
     return _HTTPHandler, _HTTPSHandler
 
@@ -520,8 +666,9 @@ class PiholeClient:
     ) -> None:
         """Create a client; no network traffic happens until the first request.
 
-        ``timeout`` is the per-request timeout in seconds (it also bounds the host
-        name lookup). ``verify`` controls TLS
+        ``timeout`` (seconds, at most :data:`MAX_TIMEOUT`) bounds each request's
+        total time: the host name lookup, connecting, the TLS handshake (and the
+        wait for its turn) and reading the reply. ``verify`` controls TLS
         certificate verification: ``True`` uses the system CA store, ``False``
         disables verification, a string is the path of a PEM CA bundle (or a
         directory of hashed certificates). Raises :class:`ConfigError` for an
@@ -536,9 +683,12 @@ class PiholeClient:
         if (
             isinstance(timeout, bool)
             or not isinstance(timeout, (int, float))
-            or not 0 < timeout < math.inf  # also rejects NaN
+            or not 0 < timeout <= MAX_TIMEOUT  # also rejects NaN
         ):
-            raise ConfigError(f"invalid timeout {timeout!r}: must be a positive number of seconds")
+            raise ConfigError(
+                f"invalid timeout {timeout!r}: must be a positive number of seconds, "
+                f"at most {MAX_TIMEOUT:g}"
+            )
         self.timeout = float(timeout)
         self.verify = self._check_verify(verify)
         self.user_agent = user_agent or f"pihello/{__version__}"
@@ -590,7 +740,8 @@ class PiholeClient:
 
         A ``429 rate_limiting`` reply (more than 3 password checks per second on
         the Pi-hole) is retried up to :data:`LOGIN_RATE_LIMIT_RETRIES` times after
-        a random 0.35 to 1.1 s delay, within the ``timeout`` budget.
+        a random 0.35 to 1.1 s delay; the whole login, retries and delays
+        included, takes at most ``timeout``.
         """
         if self._password is None:
             return
@@ -602,9 +753,7 @@ class PiholeClient:
             retries = 0
             while True:
                 sent = time.monotonic()  # real time: FTL's pause is real, too
-                reply = self._send(
-                    "POST", "auth", body={"password": self._password}, timeout=budget
-                )
+                reply = self._send("POST", "auth", body={"password": self._password}, budget=budget)
                 suspect = _maybe_rate_limited(reply, time.monotonic() - sent)
                 limited = _is_login_rate_limited(reply) or suspect
                 if retries >= LOGIN_RATE_LIMIT_RETRIES or not limited:
@@ -622,7 +771,7 @@ class PiholeClient:
                 if not session.get("valid", False):
                     raise AuthenticationError(
                         "Pi-hole rejected the login: "
-                        + str(session.get("message") or "invalid session"),
+                        + _clean(session.get("message") or "invalid session"),
                         hint="check the password",
                     )
                 sid = session.get("sid")
@@ -763,7 +912,7 @@ class PiholeClient:
                 hint="set `password` (or password_file / password_command / PIHELLO_PASSWORD); "
                 + _APP_PASSWORD_HINT,
             )
-        detail = reply.error.get("message") or "Unauthorized"
+        detail = _clean(reply.error.get("message") or "Unauthorized")
         return AuthenticationError(
             f"Pi-hole refused access to /api/{_bare(path)} ({detail})",
             hint="the session was rejected right after logging in; check the password and "
@@ -784,8 +933,9 @@ class PiholeClient:
             raise self._redirected(reply, path)
         error = reply.error
         key = str(error["key"]) if error.get("key") is not None else None
-        api_message = str(error["message"]) if error.get("message") is not None else None
-        api_hint = str(error["hint"]) if error.get("hint") is not None else None
+        api_message = _clean(error["message"]) if error.get("message") is not None else None
+        api_hint = _clean(error["hint"]) if error.get("hint") is not None else None
+        reason = _clean(reply.reason)
         if status == 404:
             if not error:
                 raise self._not_pihole(path, "HTTP 404 without a Pi-hole error", status)
@@ -799,13 +949,13 @@ class PiholeClient:
             )
         if status in (502, 503, 504) and not error:
             raise ConnectionFailed(
-                f"{self.base_url} answered HTTP {status} {reply.reason}".rstrip(),
+                f"{self.base_url} answered HTTP {status} {reason}".rstrip(),
                 hint="a reverse proxy could not reach Pi-hole, or Pi-hole is (re)starting; "
                 "try again in a moment",
             )
         if not reply.is_json:
             raise self._not_pihole(path, f"HTTP {status} with a non-JSON body", status)
-        detail = api_message or reply.reason or "error"
+        detail = api_message or reason or "error"
         if api_hint and api_hint != f"/api/{_bare(path)}":
             detail += f" ({api_hint})"
         raise APIError(
@@ -819,6 +969,7 @@ class PiholeClient:
     def _redirected(self, reply: _Reply, path: str) -> PiholeError:
         """Map a 3xx reply (redirects are never followed) to an exception."""
         location = reply.location or ""
+        shown = _clean(location)  # for messages
         try:
             target = urlsplit(location) if location else None
         except ValueError:  # e.g. "https://[bad"
@@ -834,13 +985,13 @@ class PiholeClient:
             netloc = host if port == 443 else f"{host}:{port}"
             suggestion = f"https://{netloc}" + urlsplit(self.base_url).path
             return ConnectionFailed(
-                f"{self.base_url} redirects to HTTPS ({location})",
+                f"{self.base_url} redirects to HTTPS ({shown})",
                 hint=f"use the https:// URL instead, e.g. {suggestion} (Pi-hole's HTTPS port is "
                 f"{port}, unless Docker publishes it on another one; add --ca-cert or --insecure "
                 "for Pi-hole's self-signed certificate)",
             )
         return self._not_pihole(
-            path, f"a redirect to {location}" if location else "a redirect", reply.status
+            path, f"a redirect to {shown}" if shown else "a redirect", reply.status
         )
 
     def _not_pihole(self, path: str, what: str, status: int | None) -> APIError:
@@ -862,8 +1013,16 @@ class PiholeClient:
         body: Any = None,
         sid: str | None = None,
         timeout: float | None = None,
+        budget: float | None = None,
     ) -> _Reply:
         """Perform one HTTP request and return the reply for any HTTP status.
+
+        The request must be done within ``timeout`` seconds (default: the
+        client's ``timeout``), however the time is spent: name lookup, TCP
+        connect, waiting for a turn to hand-shake TLS, the handshake, reading the
+        reply, and the one retry of a GET whose connection dropped. ``budget`` is
+        what is left of ``timeout`` when the caller already spent some (login
+        retries); error messages still quote ``timeout``.
 
         Network-level failures raise :class:`ConnectionFailed`/:class:`TLSError`.
         """
@@ -879,8 +1038,11 @@ class PiholeClient:
         if sid:
             headers["X-FTL-SID"] = sid
         request = Request(f"{self.api_url}/{path}", data=data, headers=headers, method=method)
-        opener = self._get_opener()
         limit = self.timeout if timeout is None else timeout
+        deadline = time.monotonic() + (limit if budget is None else min(budget, limit))
+        # Read by the connections urllib opens for this request (see _handler_classes).
+        request.deadline = deadline  # type: ignore[attr-defined]
+        opener = self._get_opener()
         # A GET whose connection dropped before any reply is retried once: Pi-hole's
         # web server occasionally cuts off one of several parallel TLS handshakes.
         attempts = 2 if method == "GET" else 1
@@ -889,7 +1051,8 @@ class PiholeClient:
             cause: BaseException
             try:
                 try:
-                    response = opener.open(request, timeout=limit)
+                    left = max(deadline - time.monotonic(), 0.001)
+                    response = opener.open(request, timeout=left)
                 except HTTPError as err:
                     with err:
                         reply = _make_reply(
@@ -915,7 +1078,11 @@ class PiholeClient:
             failure = self._network_error(cause, limit)
             elapsed = (time.perf_counter() - started) * 1000
             _log.debug("%s /api/%s failed after %.0f ms: %s", method, path, elapsed, failure)
-            if attempt == attempts or not _dropped_before_reply(cause):
+            if (
+                attempt == attempts
+                or not _dropped_before_reply(cause)
+                or time.monotonic() >= deadline
+            ):
                 raise failure
             _log.debug("%s /api/%s: connection dropped, retrying once", method, path)
         raise AssertionError("unreachable")  # pragma: no cover
@@ -975,7 +1142,8 @@ class PiholeClient:
             if not self._https:
                 hint = "if this is Pi-hole's HTTPS port, use https://; otherwise " + hint
             return ConnectionFailed(f"{where} closed the connection unexpectedly", hint=hint)
-        detail = getattr(exc, "strerror", None) or str(exc) or type(exc).__name__
+        # str(exc) may quote the server (e.g. a proxy's "Tunnel connection failed: 403 ...").
+        detail = _clean(getattr(exc, "strerror", None) or str(exc) or type(exc).__name__)
         return ConnectionFailed(
             f"could not connect to {where}: {detail}",
             hint="check the URL and your network connection",

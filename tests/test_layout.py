@@ -233,6 +233,19 @@ def test_wrap_treats_escape_sequences_as_zero_width() -> None:
     assert _plain(wrap_runs([("", "a \x1b[1m b")], 2)) == ["a\x1b[1m", "b"]
 
 
+def test_wrap_stops_at_the_line_limit() -> None:
+    import time
+
+    assert _plain(wrap_runs([("", "aa bb cc dd")], 2, limit=2)) == ["aa", "bb"]
+    assert _plain(wrap_runs([("", "aa bb")], 2, limit=5)) == ["aa", "bb"]
+    assert _plain(wrap_runs([("", "aa bb")], 2, limit=0)) == ["aa", "bb"]
+    start = time.perf_counter()
+    assert len(wrap_runs([(RED, "word " * 1_000_000)], 80, limit=3)) == 3
+    lines = [[("", "x" * 1_000_000)], [("", "y")]]
+    assert len(layout(lines, width=80, height=2)) == 2
+    assert time.perf_counter() - start < 0.1
+
+
 def test_clip_runs() -> None:
     assert clip_runs([(RED, "hello"), (BLUE, "world")], 7) == [(RED, "hello"), (BLUE, "wo")]
     assert clip_runs([(RED, "hello")], 5) == [(RED, "hello")]

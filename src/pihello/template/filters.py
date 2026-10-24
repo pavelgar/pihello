@@ -23,10 +23,12 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from .layout import pad, truncate, visible_width
 
 if TYPE_CHECKING:
+    import re
     from collections.abc import Callable, Mapping
 
 __all__ = [
     "FILTERS",
+    "MAX_TEXT",
     "Arg",
     "FilterArgError",
     "FilterInfo",
@@ -41,7 +43,13 @@ __all__ = [
 
 _MAX_DECIMALS = 20
 _MAX_WIDTH = 10_000
-_MAX_REPEAT_CHARS = 100_000
+MAX_TEXT = 65_536
+"""Most characters a single value prints (and ``repeat`` produces); the rest is cut."""
+_MAX_NESTING = 32  # lists nested deeper than this are missing values (bounds recursion)
+
+
+class _TooDeep(Exception):
+    pass
 
 
 # --------------------------------------------------------------------------- #
@@ -52,6 +60,7 @@ def to_text(value: Any) -> str | None:
 
     ``float`` → one decimal, ``bool`` → ``yes``/``no``, lists → items joined
     with ``", "`` (missing items skipped), mappings → ``None`` (a group).
+    Lists nested more than 32 deep are missing as a whole.
     """
     kind = type(value)
     if kind is str:
@@ -65,13 +74,27 @@ def to_text(value: Any) -> str | None:
     if kind is float:
         return f"{value:.1f}"
     if isinstance(value, (list, tuple)):
-        items = (to_text(item) for item in value)
-        return ", ".join(item for item in items if item is not None)
+        try:
+            return _join(value, 0)
+        except _TooDeep:
+            return None
     if isinstance(value, dict) or hasattr(value, "keys"):
         return None
     if isinstance(value, float):
         return f"{value:.{getattr(value, 'decimals', 1)}f}"
     return str(value)
+
+
+def _join(items: list[Any] | tuple[Any, ...], depth: int) -> str:
+    """``to_text`` of a list; raises :class:`_TooDeep` instead of recursing without bound."""
+    if depth >= _MAX_NESTING:
+        raise _TooDeep
+    texts: list[str] = []
+    for item in items:
+        text = _join(item, depth + 1) if isinstance(item, (list, tuple)) else to_text(item)
+        if text is not None:
+            texts.append(text)
+    return ", ".join(texts)
 
 
 class RoundedFloat(float):
@@ -359,27 +382,42 @@ def f_capitalize(value: Any) -> str | None:
     return None if text is None else text.capitalize()
 
 
+_WHITESPACE_CONTROLS = str.maketrans("\t\v\f", "   ")
+
+
+def _measurable(value: Any) -> str | None:
+    """``to_text(value)`` with tabs (and ``\\v``, ``\\f``) as single spaces.
+
+    Widths count a tab as zero columns, but a tab in data prints as one space,
+    so a padded or truncated value would come out too wide.
+    """
+    text = to_text(value)
+    if text is None or text.isprintable():
+        return text
+    return text.translate(_WHITESPACE_CONTROLS)
+
+
 def f_truncate(value: Any, width: int, end: str) -> str | None:
     """Limit to ``width`` visible columns, ending with ``end`` when cut."""
-    text = to_text(value)
+    text = _measurable(value)
     return None if text is None else truncate(text, _clamp(width, 0, _MAX_WIDTH), end)
 
 
 def f_ljust(value: Any, width: int, fill: str) -> str | None:
     """Pad on the right to ``width`` visible columns."""
-    text = to_text(value)
+    text = _measurable(value)
     return None if text is None else pad(text, _clamp(width, 0, _MAX_WIDTH), fill, "<")
 
 
 def f_rjust(value: Any, width: int, fill: str) -> str | None:
     """Pad on the left to ``width`` visible columns."""
-    text = to_text(value)
+    text = _measurable(value)
     return None if text is None else pad(text, _clamp(width, 0, _MAX_WIDTH), fill, ">")
 
 
 def f_center(value: Any, width: int, fill: str) -> str | None:
     """Center within ``width`` visible columns."""
-    text = to_text(value)
+    text = _measurable(value)
     return None if text is None else pad(text, _clamp(width, 0, _MAX_WIDTH), fill, "^")
 
 
@@ -390,13 +428,13 @@ def f_replace(value: Any, old: str, new: str) -> str | None:
 
 
 def f_repeat(value: Any, count: int) -> str | None:
-    """Repeat the text ``count`` times."""
+    """Repeat the text ``count`` times; the result is cut at :data:`MAX_TEXT` characters."""
     text = to_text(value)
     if text is None:
         return None
     if count <= 0 or not text:
         return ""
-    return text * min(count, _MAX_REPEAT_CHARS // len(text))
+    return (text * min(count, MAX_TEXT // len(text) + 1))[:MAX_TEXT]
 
 
 def f_prefix(value: Any, prefix: str) -> Any:
@@ -516,6 +554,20 @@ def f_avg(value: Any) -> float | None:
 _SPARKS = "▁▂▃▄▅▆▇█"
 
 
+def _float(value: Any) -> float | None:
+    """A finite number as a float; ``None`` otherwise (ints beyond float range, too)."""
+    kind = type(value)
+    if kind is not float and kind is not int:
+        value = _finite(value)
+        if value is None:
+            return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _resample(values: list[float | None], width: int) -> list[float | None]:
     count = len(values)
     if width <= 0 or width == count or not count:
@@ -527,7 +579,13 @@ def _resample(values: list[float | None], width: int) -> list[float | None]:
         low = cell * count // width
         high = max((cell + 1) * count // width, low + 1)
         bucket = [v for v in values[low:high] if v is not None]
-        result.append(math.fsum(bucket) / len(bucket) if bucket else None)
+        if not bucket:
+            result.append(None)
+            continue
+        try:
+            result.append(math.fsum(bucket) / len(bucket))
+        except OverflowError:  # the sum, not the mean, exceeds the float range (~1e308)
+            result.append(math.fsum(v / len(bucket) for v in bucket))
     return result
 
 
@@ -542,24 +600,26 @@ def f_spark(
     items = _items(value)
     if items is None:
         return None
-    values: list[float | None] = [_finite(item) for item in items]
-    values = _resample(values, _clamp(width, 0, 1000))
+    values = _resample([_float(item) for item in items], _clamp(width, 0, 1000))
     numbers = [v for v in values if v is not None]
     if not numbers:
         return " " * len(values)
-    low = min(numbers) if minimum is None else minimum
-    high = max(numbers) if maximum is None else maximum
+    low = min(numbers) if minimum is None else float(minimum)
+    high = max(numbers) if maximum is None else float(maximum)
     if high < low:  # one fixed bound lies beyond all of the data
         if minimum is not None:
             high = low
         else:
             low = high
-    span = high - low
+    # Halve everything when the range overflows (e.g. -1e308 to 1e308).
+    scale = 1.0 if math.isfinite(high - low) else 0.5
+    base = low * scale
+    span = high * scale - base
     cells: list[str] = []
     for number in values:
         if number is None:
             cells.append(" ")
-        elif span == 0 or not math.isfinite(span):
+        elif span == 0:
             if minimum is not None:
                 cells.append(_SPARKS[0])  # everything is at (or below) the fixed minimum
             elif maximum is not None:
@@ -568,7 +628,7 @@ def f_spark(
                 cells.append(_SPARKS[3] if high > 0 else _SPARKS[0])
         else:
             clamped = min(max(number, low), high)
-            cells.append(_SPARKS[min(7, int((clamped - low) / span * 7 + 0.5))])
+            cells.append(_SPARKS[min(7, int((clamped * scale - base) / span * 7 + 0.5))])
     return "".join(cells)
 
 
@@ -604,27 +664,32 @@ _TRUE_WORDS = frozenset(("true", "yes", "on", "1", "enabled"))
 _FALSE_WORDS = frozenset(("false", "no", "off", "0", "", "disabled"))
 
 
-def _natural_key(text: str) -> list[tuple[int, int | str]]:
-    """Sort key comparing digit runs numerically: ``v6.10`` > ``v6.9``."""
-    key: list[tuple[int, int | str]] = []
-    digits: list[str] = []
-    other: list[str] = []
-    for char in text:
-        if char.isdigit() and char.isascii():
-            if other:
-                key.append((1, "".join(other)))
-                other = []
-            digits.append(char)
-        else:
-            if digits:
-                key.append((0, int("".join(digits)[:300])))
-                digits = []
-            other.append(char)
-    if digits:
-        key.append((0, int("".join(digits)[:300])))
-    if other:
-        key.append((1, "".join(other)))
-    return key
+_token_regex: re.Pattern[str] | None = None
+
+
+def _natural_compare(left: str, right: str) -> int:
+    """-1/0/1 comparing digit runs numerically: ``v6.10`` > ``v6.9``.
+
+    Runs of ASCII digits (numbers) sort before other text. Stops at the first
+    run that differs, so a huge value costs no more than its first runs.
+    """
+    global _token_regex  # noqa: PLW0603 - compiled on first use to keep import cheap
+    if _token_regex is None:
+        import re  # noqa: PLC0415
+
+        _token_regex = re.compile(r"[0-9]+|[^0-9]+")
+    runs_left, runs_right = _token_regex.finditer(left), _token_regex.finditer(right)
+    while True:
+        a, b = next(runs_left, None), next(runs_right, None)
+        if a is None or b is None:
+            return (a is not None) - (b is not None)
+        key_a, key_b = _natural_run(a.group()), _natural_run(b.group())
+        if key_a != key_b:
+            return 1 if key_a > key_b else -1
+
+
+def _natural_run(run: str) -> tuple[int, int | str]:
+    return (0, int(run[:300])) if "0" <= run[0] <= "9" else (1, run)
 
 
 def _compare(left: Any, right: Any) -> int | None:
@@ -653,8 +718,7 @@ def _compare(left: Any, right: Any) -> int | None:
         return None
     if text_a == text_b:
         return 0
-    key_a, key_b = _natural_key(text_a), _natural_key(text_b)
-    return (key_a > key_b) - (key_a < key_b)
+    return _natural_compare(text_a, text_b)
 
 
 def f_eq(value: Any, other: Any) -> bool:
@@ -1058,7 +1122,7 @@ _register(
     "repeat",
     f_repeat,
     (("n", INT, REQUIRED),),
-    "repeat the text n times",
+    "repeat the text n times (the result is cut at 65,536 characters)",
     "text",
     '{"─"|repeat(40)}',
 )

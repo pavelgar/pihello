@@ -41,7 +41,7 @@ pihello 192.168.1.2:8080 MY-APP-PASSWORD -ts '%H:%M'
 | `-H`, `--height N` | Same, and now actually limits the lines |
 | `-c`, `--clip` | Same, and now actually clips |
 | `-i`, `--indent N` | Same (also `--tab-size`): the tab stop width, now applied |
-| `-v`, `--version` | Same |
+| `-v`, `--version` | Same option, but the output changed: `pihello 2.0.0`, where 1.x printed just `1.0.0` |
 
 ### The 1.x look
 

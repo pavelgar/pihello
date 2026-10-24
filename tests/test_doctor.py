@@ -695,3 +695,94 @@ def test_hints_use_the_same_menu_arrows_as_the_docs() -> None:
 
     assert "Settings → Web interface / API → Currently active sessions" in doctor._SESSIONS_HINT
     assert "Settings >" not in doctor._SESSIONS_HINT
+
+
+@pytest.mark.parametrize("https", [False, True])
+def test_url_credentials_are_never_printed(
+    https: bool, cfg: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # doctor's output is meant to be shared: the settings table and the
+    # failure must not show the (unsupported) user info of the URL.
+    flags = ["-p"] if https else []
+    code, out, err = run(["--url", "http://user:URL-SECRET-1@127.0.0.1", *flags], capsys)
+    assert code == 2
+    assert "URL-SECRET-1" not in out + err
+    assert "credentials in the Pi-hole URL are not supported" in out
+    cfg.write_text('url = "http://admin:URL-SECRET-2@pi.hole"\n')
+    code, out, err = run([], capsys)
+    assert code == 2
+    assert "URL-SECRET-2" not in out + err
+    assert "http://***@pi.hole" in out
+
+
+def test_password_command_is_shown_without_its_arguments(
+    cfg: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The run stops at the TCP check, before the command runs: only the table shows it.
+    cfg.write_text(
+        config.dumps({"url": "http://127.0.0.1:9", "password_command": ["echo", "CMD-SECRET-1"]})
+    )
+    code, out, err = run(["--timeout", "1"], capsys)
+    assert code == 3
+    assert "CMD-SECRET-1" not in out + err
+    assert "password_command (echo …)" in out
+    command = "/usr/bin/bw get password pihole --session CMD-SECRET-2"
+    code, out, err = run(["--password-command", command, "--timeout", "1"], capsys)
+    assert "CMD-SECRET-2" not in out + err
+    assert "password_command (bw …)" in out
+
+
+def test_failing_password_command_is_not_echoed(
+    cfg: Path, fake_pihole: FakePihole, capsys: pytest.CaptureFixture[str]
+) -> None:
+    command = [sys.executable, "-c", "import sys; sys.exit(1)", "CMD-SECRET-3"]
+    cfg.write_text(config.dumps({"url": fake_pihole.url, "password_command": command}))
+    code, out, err = run([], capsys)
+    assert code == 2
+    assert "failed with exit status 1" in out
+    assert "CMD-SECRET-3" not in out + err
+
+
+def test_docker_update_status_unknown_although_components_are_known(
+    cfg: Path, fake_pihole: FakePihole, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # In Docker only the image tag counts (sources: updates.status), not the
+    # components inside the image.
+    configure(cfg, fake_pihole)
+    current = {"local": {"version": "v6.5"}, "remote": {"version": "v6.5"}}
+    reply = {
+        "version": {
+            "core": current,
+            "web": current,
+            "ftl": current,
+            "docker": {"local": "2026.10.0", "remote": "null"},
+        }
+    }
+    fake_pihole.set_response("GET /api/info/version", 200, reply)
+    code, out, _ = run([], capsys)
+    assert code == 0, out
+    assert "update status unknown" in out
+    assert "up to date" not in out
+    reply["version"]["docker"]["remote"] = "2026.10.0"
+    fake_pihole.set_response("GET /api/info/version", 200, reply)
+    _, out, _ = run([], capsys)
+    assert "✓ up to date" in out
+    assert "update status unknown" not in out
+
+
+def test_pihole_data_cannot_send_terminal_controls(
+    cfg: Path, fake_pihole: FakePihole, capsys: pytest.CaptureFixture[str]
+) -> None:
+    evil = "v6.5\x1b]0;owned\x07\x1b[2J\u009b31m\u202e"
+    configure(cfg, fake_pihole)
+    fake_pihole.set_response(
+        "GET /api/info/version", 200, {"version": {"core": {"local": {"version": evil}}}}
+    )
+    fake_pihole.set_response(
+        "GET /api/info/system", 500, {"error": {"key": "x", "message": f"broken {evil}"}}
+    )
+    _, out, err = run(["--no-color"], capsys)
+    assert "Pi-hole core v6.5" in out
+    assert "broken v6.5" in out
+    for control in ("\x1b", "\x07", "\u009b", "\u202e"):
+        assert control not in out + err, repr(control)

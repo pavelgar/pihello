@@ -67,6 +67,23 @@ def test_to_text(value: Any, text: str | None) -> None:
     assert to_text(value) == text
 
 
+def _nested(depth: int, leaf: Any = "a") -> Any:
+    value = leaf
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
+def test_to_text_limits_nesting() -> None:
+    # Regression: one Python frame per level, so ~400 levels raised RecursionError.
+    assert to_text(_nested(32)) == "a"
+    assert to_text([1, (2, _nested(30, 3))]) == "1, 2, 3"
+    assert to_text(_nested(33)) is None
+    assert to_text([1, _nested(40)]) is None  # the whole value is missing, not just a part
+    assert to_text(_nested(100_000)) is None
+    assert F.f_join([_nested(40), "b"], "-") == "b"
+
+
 class _FloatLike(float):
     pass
 
@@ -304,8 +321,32 @@ def test_text_filters(expression: str, value: Any, result: str) -> None:
 
 
 def test_repeat_is_capped() -> None:
-    assert len(ev("|repeat(100000000)", "ab")) == 100_000
+    assert len(ev("|repeat(100000000)", "ab")) == 65_536
     assert Template.parse('{"─"|repeat(5)}').render({}) == "─────"
+
+
+def test_repeat_cuts_long_results_instead_of_dropping_them() -> None:
+    # Regression: text over 100,000 characters silently repeated to "".
+    assert F.f_repeat("x" * 70_000, 2) == "x" * 65_536
+    assert F.f_repeat("abc", 30_000) == ("abc" * 21_846)[:65_536]
+    assert F.f_repeat("abc", 3) == "abcabcabc"
+    assert "65,536" in FILTERS["repeat"].description
+
+
+@pytest.mark.parametrize(
+    ("expression", "value"),
+    [
+        ("|ljust(5)", "a\tb"),
+        ("|rjust(5)", "a\x0bb"),
+        ("|center(5)", "a\x0cb"),
+        ("|truncate(3)", "a\tbcd"),
+    ],
+)
+def test_padding_filters_count_whitespace_controls_as_spaces(expression: str, value: str) -> None:
+    # A tab is printed as one space (data) or a tab stop, never as zero columns.
+    output = ev(expression, value)
+    assert visible_width(output) == int(expression.split("(")[1][0])
+    assert "\t" not in output
 
 
 def test_prefix_passthrough_and_none() -> None:
@@ -443,6 +484,24 @@ def test_spark(expression: str, value: Any, result: str) -> None:
 @pytest.mark.parametrize(
     ("expression", "value", "result"),
     [
+        ("|spark", [1e308, 1e308, -1e308], "██▁"),
+        ("|spark", [-1.7e308, 0, 1.7e308], "▁▅█"),
+        ("|spark(2)", [1e308, 1e308, 1e308, 1e308], "▄▄"),
+        ("|spark(1)", [1e308, 1e308, -1e308], "▄"),
+        ("|spark(2)", [1.7e308, 1.7e308, -1.7e308, -1.7e308], "█▁"),
+        ("|spark", [10**400, 1], " ▄"),  # beyond float range: like infinity, skipped
+        ("|spark(1)", [10**400, 1, 3], "▄"),
+        ("|spark(min=0, max=10)", [10**400, 5], " ▅"),
+    ],
+)
+def test_spark_extreme_values(expression: str, value: Any, result: str) -> None:
+    # Regression: math.fsum() overflowed near 1e308 and the range became infinite.
+    assert ev(expression, value) == result
+
+
+@pytest.mark.parametrize(
+    ("expression", "value", "result"),
+    [
         ("|bar(10)", 54, "█████▍░░░░"),
         ("|bar(10)", 0, "░░░░░░░░░░"),
         ("|bar(10)", 100, "██████████"),
@@ -542,7 +601,25 @@ def test_logic_filters(expression: str, value: Any, result: str) -> None:
 def test_compare_helpers() -> None:
     assert F.f_eq("a", "a") is True
     assert F._compare({"a": 1}, "x") is None
-    assert F._natural_key("v6.10") > F._natural_key("v6.9")
+    assert F._natural_compare("v6.10", "v6.9") == 1
+    assert F._natural_compare("v6.9", "v6.10") == -1
+    assert F._natural_compare("a01", "a1") == 0
+    assert F._natural_compare("v6", "v6.1") == -1
+    assert F._natural_compare("6a", "a6") == -1  # numbers sort before text
+
+
+@pytest.mark.parametrize("unit", ["x", "日本", "a\x01", "1a"])
+def test_huge_values_are_cheap_to_measure_and_compare(unit: str) -> None:
+    # Regression: truncate/ljust/eq read the whole value in Python loops: a 32 MiB
+    # reply took over a second per filter.
+    value = unit * (4_000_000 // len(unit))
+    start = time.perf_counter()
+    assert 19 <= visible_width(F.f_truncate(value, 20, "…") or "") <= 20  # 日 is two columns
+    assert F.f_ljust(value, 20, " ") == value
+    assert F.f_center(value, 20, " ") == value
+    assert F.f_gt(value, 60) is (unit != "1a")
+    assert F.f_eq(value, "v6.0") is False
+    assert time.perf_counter() - start < 0.5
 
 
 # --------------------------------------------------------------------------- #

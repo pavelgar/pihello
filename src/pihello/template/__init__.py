@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from ..errors import TemplateError
 from .color import ColorDepth
-from .engine import RenderOptions, Template, escape, render
+from .engine import RenderOptions, Template, escape, render, sanitize
 from .layout import strip_ansi, visible_width
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "TemplateError",
     "escape",
     "render",
+    "sanitize",
     "strip_ansi",
     "visible_width",
 ]

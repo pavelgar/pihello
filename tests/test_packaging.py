@@ -4,7 +4,9 @@ Guards the packaging configuration in ``pyproject.toml``: the wheel contains
 the whole package (``py.typed``, preset templates, ...) and nothing else, its
 metadata is right, and the sdist carries what downstream packagers need to run
 the test suite. Skipped when neither ``uv`` nor ``build`` is available or when
-not running from a source checkout.
+not running from a source checkout. An unpacked sdist (``PKG-INFO`` next to
+``pyproject.toml``) is the thing under test, not a checkout: building it again
+needs ``uv`` and network access for the build backend.
 """
 
 from __future__ import annotations
@@ -35,7 +37,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = ROOT / "src" / "pihello"
 
 pytestmark = pytest.mark.skipif(
-    not (ROOT / "pyproject.toml").is_file() or not PACKAGE_DIR.is_dir(),
+    not (ROOT / "pyproject.toml").is_file()
+    or not PACKAGE_DIR.is_dir()
+    or (ROOT / "PKG-INFO").is_file(),  # an unpacked sdist
     reason="packaging tests need a source checkout",
 )
 
@@ -186,6 +190,7 @@ def test_sdist_has_project_files(dists: Dists) -> None:
         "LICENSE",
         "CHANGELOG.md",
         "docs/architecture.md",
+        "scripts/record_fixtures.py",  # needed by tests/test_fixtures.py
         "src/pihello/__init__.py",
         "src/pihello/py.typed",
     ):

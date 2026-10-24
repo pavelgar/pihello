@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import contextlib
+import gc
+import json
 import logging
+import re
 import socket
 import ssl
 import threading
+import time
 import urllib.request
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from http.client import RemoteDisconnected
 from typing import TYPE_CHECKING, Any
@@ -21,13 +27,14 @@ from pihello.errors import (
     ConfigError,
     ConnectionFailed,
     EndpointNotFound,
+    PiholeError,
     TLSError,
     TooManySessions,
     TwoFactorRequired,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
     from helpers.fakepihole import FakePihole
@@ -232,10 +239,17 @@ def test_empty_password_means_no_password() -> None:
     assert not PiholeClient("pi.hole", "").has_password
 
 
-@pytest.mark.parametrize("timeout", [0, -1, "3", True, None, float("nan"), float("inf")])
+@pytest.mark.parametrize(
+    "timeout", [0, -1, "3", True, None, float("nan"), float("inf"), 3600.5, 1e300]
+)
 def test_invalid_timeout(timeout: Any) -> None:
+    # 1e300 used to overflow deep in socket/threading code (an internal error).
     with pytest.raises(ConfigError, match="timeout"):
         PiholeClient("pi.hole", timeout=timeout)
+
+
+def test_longest_timeout() -> None:
+    assert PiholeClient("pi.hole", timeout=3600).timeout == 3600
 
 
 def test_verify_path_must_exist(tmp_path: Path) -> None:
@@ -351,8 +365,6 @@ def test_logout_uses_short_timeout(fake_pihole: FakePihole) -> None:
     client = PiholeClient(fake_pihole.url, PASSWORD, timeout=30)
     client.login()
     fake_pihole.fail("DELETE auth", delay=5)
-    import time
-
     started = time.monotonic()
     client.logout()
     assert time.monotonic() - started < 4
@@ -457,18 +469,32 @@ def test_rate_limit_retries_respect_timeout_budget(fake_pihole: FakePihole) -> N
         now[0] += delay
 
     client._sleep = sleep
-    timeouts: list[float | None] = []
+    budgets: list[float | None] = []
     send = client._send
 
     def recording_send(*args: Any, **kwargs: Any) -> Any:
-        timeouts.append(kwargs.get("timeout"))
+        budgets.append(kwargs.get("budget"))
         return send(*args, **kwargs)
 
     client._send = recording_send  # type: ignore[method-assign]
     with pytest.raises(AuthenticationError, match="after 1 retries"):
         client.login()
     assert sleeps == [0.6]  # a second retry would exceed the 1 s budget
-    assert timeouts == [1.0, pytest.approx(0.4)]
+    assert budgets == [1.0, pytest.approx(0.4)]
+
+
+def test_login_retry_that_times_out_quotes_the_whole_timeout(fake_pihole: FakePihole) -> None:
+    # The retry only gets what is left of the timeout, but the user set --timeout 0.8:
+    # "within 0.4s" would be confusing.
+    fake_pihole.fail("POST auth", status=429, raw=RATE_LIMITED, times=1)
+    fake_pihole.fail("POST auth", delay=2, times=1)
+    client, sleeps = no_sleep_client(fake_pihole.url, timeout=0.8)
+    client._jitter = lambda: 0.4
+    started = time.monotonic()
+    with pytest.raises(ConnectionFailed, match=r"no response from \S+ within 0\.8s$"):
+        client.login()
+    assert sleeps == [0.4]
+    assert time.monotonic() - started < 0.7  # the (skipped) 0.4 s delay counted, too
 
 
 def test_rate_limit_without_budget_is_not_retried(fake_pihole: FakePihole) -> None:
@@ -913,14 +939,97 @@ def test_non_finite_json_numbers_are_unknown(fake_pihole: FakePihole) -> None:
 
 @pytest.mark.parametrize("sid", ["abc\r\nX-Injected: 1", "sid☃", "a\x00b"])
 def test_unusable_session_id_is_rejected(fake_pihole: FakePihole, sid: str) -> None:
-    import json
-
     session = {"valid": True, "totp": False, "sid": sid, "validity": 1800}
     fake_pihole.fail("POST auth", raw=json.dumps({"session": session}).encode())
     client = PiholeClient(fake_pihole.url, PASSWORD)
     with pytest.raises(APIError, match="doesn't look like a Pi-hole v6 API"):
         client.login()
     assert client.sid is None
+
+
+# Escape sequences from the server must not reach the terminal through error
+# messages: a review's fake redirect set the terminal title and cleared the screen
+# in `pihello doctor`. (Header values can't carry \r\n or NUL, JSON strings can.)
+HOSTILE = "\x1b]0;PWNED\x07\x1b[2J\x9b2J\x7f"
+CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def assert_terminal_safe(error: PiholeError) -> None:
+    for text in (str(error), error.hint or "", getattr(error, "api_message", None) or ""):
+        assert not CONTROL.search(text), repr(text)
+        assert "PWNED" not in text, repr(text)  # the whole OSC sequence goes
+
+
+def test_redirect_location_is_terminal_safe(fake_pihole: FakePihole) -> None:
+    fake_pihole.fail("info/login", status=302, raw=b"", headers={"Location": "/x" + HOSTILE})
+    with pytest.raises(APIError, match="redirect to /x") as info:
+        PiholeClient(fake_pihole.url).probe()
+    assert_terminal_safe(info.value)
+
+
+def test_https_redirect_location_is_terminal_safe(fake_pihole: FakePihole) -> None:
+    location = "https://pi.hole/api/info/login" + HOSTILE
+    fake_pihole.fail("info/login", status=308, raw=b"", headers={"Location": location})
+    with pytest.raises(ConnectionFailed, match=r"redirects to HTTPS \(https://pi\.hole/") as info:
+        PiholeClient(fake_pihole.url).probe()
+    assert_terminal_safe(info.value)
+
+
+def test_pihole_error_text_is_terminal_safe(fake_pihole: FakePihole) -> None:
+    error = {"key": "bad_request", "message": "boom" + HOSTILE, "hint": "try" + HOSTILE}
+    fake_pihole.set_response("GET /api/info/login", 400, {"error": error, "took": 0})
+    with pytest.raises(APIError, match="HTTP 400 for /api/info/login: boom") as info:
+        PiholeClient(fake_pihole.url).probe()
+    assert "(try" in str(info.value)
+    assert_terminal_safe(info.value)
+
+
+def test_rejected_login_message_is_terminal_safe(fake_pihole: FakePihole) -> None:
+    session = {"valid": False, "message": "nope" + HOSTILE}
+    fake_pihole.fail("POST auth", raw=json.dumps({"session": session}).encode())
+    with pytest.raises(AuthenticationError, match="nope") as info:
+        PiholeClient(fake_pihole.url, PASSWORD).login()
+    assert_terminal_safe(info.value)
+
+
+def test_unauthorized_message_is_terminal_safe(fake_pihole: FakePihole) -> None:
+    body = {"error": {"key": "unauthorized", "message": "denied" + HOSTILE}}
+    fake_pihole.set_response("GET /api/dns/blocking", 401, body)
+    with (
+        PiholeClient(fake_pihole.url, PASSWORD) as client,
+        pytest.raises(AuthenticationError, match="denied") as info,
+    ):
+        client.get("dns/blocking")
+    assert_terminal_safe(info.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "error"), [("502 Bad", ConnectionFailed), ("418 Odd", APIError)]
+)
+def test_reason_phrase_is_terminal_safe(status: str, error: type[PiholeError]) -> None:
+    body = b"{}"
+    head = json_head(status + HOSTILE, body)
+    with raw_server(head, body) as url, pytest.raises(error, match=status.split()[1]) as info:
+        PiholeClient(url).probe()
+    assert_terminal_safe(info.value)
+
+
+def test_proxy_tunnel_error_is_terminal_safe(monkeypatch: pytest.MonkeyPatch) -> None:
+    head = ("HTTP/1.1 403 Forbidden" + HOSTILE + "\r\n\r\n").encode("latin-1")
+    with raw_server(head) as proxy:
+        monkeypatch.setenv("https_proxy", proxy)
+        monkeypatch.delenv("no_proxy", raising=False)
+        monkeypatch.delenv("NO_PROXY", raising=False)
+        with pytest.raises(ConnectionFailed, match="Tunnel connection failed: 403") as info:
+            PiholeClient("https://pi.hole.invalid", timeout=2).probe()
+    assert_terminal_safe(info.value)
+    # Python 3.10's http.client never closes a failed CONNECT's response (3.13 does),
+    # so only the garbage collector frees its socket, with a ResourceWarning that
+    # would otherwise fail whichever test happens to trigger the collection.
+    del info
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ResourceWarning)
+        gc.collect()
 
 
 # --------------------------------------------------------------------------- #
@@ -940,16 +1049,16 @@ def test_connect_timeout_is_not_a_slow_pihole(monkeypatch: pytest.MonkeyPatch) -
     TCP handshake; a longer --timeout won't help (unlike a slow reply, see test_timeout)."""
     attempts: list[Any] = []
 
-    def unreachable(address: Any, timeout: Any = None, *args: Any) -> Any:
-        attempts.append((address, timeout))
+    def unreachable(self: socket.socket, address: Any) -> None:
+        attempts.append((address, self.gettimeout()))
         raise TimeoutError("timed out")  # what a connect() that gets no answer raises
 
-    monkeypatch.setattr(socket, "create_connection", unreachable)
+    monkeypatch.setattr(socket.socket, "connect", unreachable)
     with pytest.raises(
         ConnectionFailed, match=r"no connection to 192\.0\.2\.1 within 0\.3s"
     ) as info:
         PiholeClient("http://192.0.2.1", PASSWORD, timeout=0.3).login()
-    assert attempts == [(("192.0.2.1", 80), 0.3)]
+    assert attempts == [(("192.0.2.1", 80), pytest.approx(0.3, abs=0.05))]
     assert info.value.hint
     assert "--timeout" not in info.value.hint
     assert "network" in info.value.hint
@@ -1031,8 +1140,6 @@ def test_dns_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_dns_lookup_respects_the_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """The system resolver has no timeout urllib could apply: if Pi-hole is the only DNS
     server and it is down, looking up pi.hole blocks for the resolver's retries."""
-    import time
-
     real_getaddrinfo = socket.getaddrinfo
     release = threading.Event()
 
@@ -1056,8 +1163,6 @@ def test_dns_lookup_respects_the_timeout(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_slow_dns_lookup_within_the_timeout(
     fake_pihole: FakePihole, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import time
-
     real_getaddrinfo = socket.getaddrinfo
 
     def slow(host: Any, *args: Any, **kwargs: Any) -> Any:
@@ -1118,14 +1223,14 @@ def test_unspecified_addresses_are_skipped(
         ]
 
     tried: list[str] = []
-    real_create = socket.create_connection
+    real_connect = socket.socket.connect
 
-    def create_connection(address: tuple[str, int], *args: Any, **kwargs: Any) -> socket.socket:
+    def connect(self: socket.socket, address: Any) -> None:
         tried.append(address[0])
-        return real_create(address, *args, **kwargs)
+        real_connect(self, address)
 
     monkeypatch.setattr(client_module, "_resolve", resolve)
-    monkeypatch.setattr(socket, "create_connection", create_connection)
+    monkeypatch.setattr(socket.socket, "connect", connect)
     assert PiholeClient(f"http://pihole.lan:{port}").probe()["dns"] is True
     assert tried == ["127.0.0.1"]
 
@@ -1142,14 +1247,111 @@ def test_only_unspecified_addresses_are_still_tried(monkeypatch: pytest.MonkeyPa
     )
     tried: list[str] = []
 
-    def create_connection(address: tuple[str, int], *args: Any, **kwargs: Any) -> socket.socket:
+    def connect(self: socket.socket, address: Any) -> None:
         tried.append(address[0])
         raise ConnectionRefusedError(111, "Connection refused")
 
-    monkeypatch.setattr(socket, "create_connection", create_connection)
+    monkeypatch.setattr(socket.socket, "connect", connect)
     with pytest.raises(ConnectionFailed, match="refused"):
         PiholeClient("http://pihole.lan:8080").probe()
     assert tried == ["0.0.0.0"]
+
+
+def test_each_address_gets_a_share_of_the_timeout(
+    fake_pihole: FakePihole, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The timeout bounds the whole connect, but a black-holed first address (often a
+    # broken IPv6 route) must not use all of it: the next address gets its turn.
+    import pihello.client as client_module
+
+    monkeypatch.setattr(
+        client_module,
+        "_resolve",
+        lambda host, port, timeout: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", port)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port)),
+        ],
+    )
+    tried: list[tuple[str, float | None]] = []
+    real_connect = socket.socket.connect
+
+    def connect(self: socket.socket, address: Any) -> None:
+        tried.append((address[0], self.gettimeout()))
+        if address[0] == "192.0.2.1":
+            time.sleep(self.gettimeout() or 0)
+            raise TimeoutError("timed out")
+        real_connect(self, address)
+
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    started = time.monotonic()
+    assert PiholeClient(f"http://pihole.lan:{fake_pihole.port}", timeout=0.4).probe()
+    assert time.monotonic() - started < 0.4
+    assert [address for address, _ in tried] == ["192.0.2.1", "127.0.0.1"]
+    assert tried[0][1] == pytest.approx(0.2, abs=0.05)
+    assert tried[1][1] == pytest.approx(0.2, abs=0.05)
+
+
+def test_ipv6_loopback(fake_pihole_factory: Callable[..., FakePihole]) -> None:
+    if not socket.has_ipv6:
+        pytest.skip("no IPv6 support")
+    try:
+        fake = fake_pihole_factory(host="::1")
+    except OSError as exc:  # e.g. IPv6 disabled in a container
+        pytest.skip(f"cannot listen on ::1: {exc}")
+    assert fake.url.startswith("http://[::1]:")
+    with PiholeClient(fake.url, PASSWORD, timeout=2) as client:
+        assert client.get("dns/blocking")
+    assert fake.active_sessions == {}
+
+
+def test_link_local_zone_is_kept(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``http://[fe80::1%eth0]`` worked in 1.x: the scope id (the 4th item of the
+    socket address) says which interface the address is on."""
+    import pihello.client as client_module
+
+    monkeypatch.setattr(
+        client_module,
+        "_resolve",
+        lambda host, port, timeout: [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("fe80::1", port, 0, 7))
+        ],
+    )
+    connected: list[Any] = []
+
+    def connect(self: socket.socket, address: Any) -> None:
+        connected.append(address)
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    with pytest.raises(ConnectionFailed, match="refused"):
+        PiholeClient("http://[fe80::1%7]:8080").probe()
+    assert connected == [("fe80::1", 8080, 0, 7)]
+
+
+def _link_local_address() -> str | None:
+    """A link-local IPv6 address of this machine with its zone (``fe80::…%eth0``), if any."""
+    import ipaddress
+    from pathlib import Path
+
+    try:  # Linux only: address, index, prefix length, scope, flags, interface
+        rows = [line.split() for line in Path("/proc/net/if_inet6").read_text().splitlines()]
+    except OSError:
+        return None
+    for row in rows:
+        if len(row) == 6 and row[0].startswith("fe80"):
+            return f"{ipaddress.IPv6Address(bytes.fromhex(row[0]))}%{row[5]}"
+    return None
+
+
+def test_link_local_address_with_zone(fake_pihole_factory: Callable[..., FakePihole]) -> None:
+    address = _link_local_address()
+    if address is None:
+        pytest.skip("no link-local IPv6 address")
+    try:
+        fake = fake_pihole_factory(host=address)
+    except OSError as exc:
+        pytest.skip(f"cannot listen on {address}: {exc}")
+    assert PiholeClient(fake.url, timeout=2).probe()["dns"] is True
 
 
 def test_proxy_resolves_the_pihole_host(
@@ -1258,6 +1460,127 @@ def test_read_timeout_during_body(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# The timeout bounds each request's total time                                 #
+# --------------------------------------------------------------------------- #
+# A per-socket-operation timeout never fires for a server that keeps sending a
+# byte now and then, or for a request queued behind other TLS handshakes; a
+# review measured `pihello -q --timeout 1` taking 22.6 s against a dripping server.
+NO_RESPONSE = r"no response from https?://\S+ within "
+
+
+@pytest.fixture
+def black_hole() -> Iterator[int]:
+    """A port whose TCP connections complete (in the kernel) but never get an answer."""
+    with socket.socket() as server:
+        server.bind(("127.0.0.1", 0))
+        server.listen(32)
+        yield int(server.getsockname()[1])
+
+
+@contextlib.contextmanager
+def raw_server(head: bytes, body: bytes = b"", *, pause: float = 0.0) -> Iterator[str]:
+    """Serve every request with ``head`` (sent at once) and ``body``, one byte per ``pause``."""
+    stop = threading.Event()
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(8)
+    listener.settimeout(0.05)
+
+    def serve() -> None:
+        while not stop.is_set():
+            try:
+                conn, _ = listener.accept()
+            except TimeoutError:
+                continue
+            with conn, contextlib.suppress(OSError):
+                conn.recv(65536)
+                conn.sendall(head)
+                for index in range(len(body)):
+                    if pause and stop.wait(pause):
+                        break
+                    conn.sendall(body[index : index + 1])
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{listener.getsockname()[1]}"
+    finally:
+        stop.set()
+        thread.join()
+        listener.close()
+
+
+def json_head(status: str, body: bytes) -> bytes:
+    return (
+        f"HTTP/1.1 {status}\r\nContent-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
+    ).encode("latin-1")
+
+
+def test_dripping_reply_is_cut_off_at_the_timeout(fake_pihole: FakePihole) -> None:
+    fake_pihole.fail("info/login", drip=0.02)  # status line, headers and body: ~5 s
+    client = PiholeClient(fake_pihole.url, timeout=0.3)
+    started = time.monotonic()
+    with pytest.raises(ConnectionFailed, match=NO_RESPONSE + r"0\.3s") as info:
+        client.probe()
+    assert time.monotonic() - started < 0.6
+    assert info.value.hint
+    assert "--timeout" in info.value.hint
+
+
+def test_dripping_login_is_cut_off_at_the_timeout(fake_pihole: FakePihole) -> None:
+    # The review's case: a login with timeout=0.1 succeeded after 0.6 s.
+    fake_pihole.fail("POST auth", drip=0.02)
+    client = PiholeClient(fake_pihole.url, PASSWORD, timeout=0.2)
+    started = time.monotonic()
+    with pytest.raises(ConnectionFailed, match=NO_RESPONSE + r"0\.2s"):
+        client.login()
+    assert time.monotonic() - started < 0.5
+    assert client.sid is None
+
+
+@pytest.mark.parametrize("status", ["200 OK", "500 Internal Server Error"])
+def test_dripping_body_is_cut_off_at_the_timeout(status: str) -> None:
+    # Headers at once, then the body a byte at a time (~0.9 s): both the normal and
+    # the HTTP error path read the body under the deadline.
+    body = b'{"error": {"key": "x", "message": "slow", "hint": null}, "dns": true, "took": 0}'
+    with raw_server(json_head(status, body), body, pause=0.02) as url:
+        client = PiholeClient(url, timeout=0.3)
+        started = time.monotonic()
+        with pytest.raises(ConnectionFailed, match=NO_RESPONSE + r"0\.3s"):
+            client.probe()
+        assert time.monotonic() - started < 0.6
+
+
+def test_get_retry_stays_within_the_timeout(fake_pihole: FakePihole) -> None:
+    # The one retry of a dropped GET gets what is left of the timeout, not a new one.
+    fake_pihole.fail("info/login", delay=0.4, drop=True, times=1)
+    fake_pihole.fail("info/login", delay=0.4, times=1)
+    client = PiholeClient(fake_pihole.url, timeout=0.6)
+    started = time.monotonic()
+    with pytest.raises(ConnectionFailed, match=NO_RESPONSE + r"0\.6s"):
+        client.probe()
+    assert time.monotonic() - started < 0.75
+    assert len(fake_pihole.requests_to("info/login")) == 2
+
+
+def test_stalled_tls_handshakes_share_one_timeout(black_hole: int) -> None:
+    # A server that accepts TCP but never answers the TLS handshake. Handshakes take
+    # turns (see test_tls_handshakes_take_turns), but the requests waiting for their
+    # turn must not each wait for the previous one's full timeout (review: 12.1 s
+    # for 4 requests with timeout=3).
+    client = PiholeClient(f"https://127.0.0.1:{black_hole}", timeout=0.3, verify=False)
+    started = time.monotonic()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(client.probe) for _ in range(4)]
+        failures = [future.exception() for future in futures]
+    assert time.monotonic() - started < 0.7  # one timeout, not four in a row
+    for failure in failures:
+        assert isinstance(failure, ConnectionFailed)
+        assert re.match(NO_RESPONSE + r"0\.3s$", str(failure)), failure
+
+
+# --------------------------------------------------------------------------- #
 # TLS against the fake server                                                  #
 # --------------------------------------------------------------------------- #
 @pytest.fixture
@@ -1271,8 +1594,6 @@ def test_tls_handshakes_take_turns(
     # Pi-hole FTL up to at least v6.5 fails, and can segfault, on parallel TLS
     # handshakes; every HTTPS connection must hand-shake under the shared lock
     # while the requests themselves still run in parallel.
-    import time
-
     import pihello.client as client_module
     from pihello import sources
 
@@ -1281,18 +1602,26 @@ def test_tls_handshakes_take_turns(
     state = {"inside": 0, "most": 0, "entries": 0}
 
     class Tracking:
-        def __enter__(self) -> None:
-            real.acquire()
+        def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+            if not real.acquire(blocking, timeout):
+                return False
             with guard:
                 state["inside"] += 1
                 state["entries"] += 1
                 state["most"] = max(state["most"], state["inside"])
             time.sleep(0.005)  # widen the window in which an overlap would show
+            return True
 
-        def __exit__(self, *exc: object) -> None:
+        def release(self) -> None:
             with guard:
                 state["inside"] -= 1
             real.release()
+
+        def __enter__(self) -> None:
+            self.acquire()
+
+        def __exit__(self, *exc: object) -> None:
+            self.release()
 
     monkeypatch.setattr(client_module, "_TLS_HANDSHAKE_LOCK", Tracking())
     assert https_pihole.ca_cert_path is not None
@@ -1302,6 +1631,32 @@ def test_tls_handshakes_take_turns(
     planned = len(sources.plan_all())
     assert state["entries"] >= planned + 1  # the login and every fetch hand-shook under the lock
     assert state["most"] == 1
+
+
+def test_waiting_for_a_handshake_turn_counts_against_the_timeout(
+    https_pihole: FakePihole,
+) -> None:
+    import pihello.client as client_module
+
+    holding, done = threading.Event(), threading.Event()
+
+    def hold() -> None:  # another request's handshake that takes 2 s
+        with client_module._TLS_HANDSHAKE_LOCK:
+            holding.set()
+            done.wait(2)
+
+    other = threading.Thread(target=hold)
+    other.start()
+    holding.wait()
+    try:
+        client = PiholeClient(https_pihole.url, verify=False, timeout=0.3)
+        started = time.monotonic()
+        with pytest.raises(ConnectionFailed, match=NO_RESPONSE + r"0\.3s$"):
+            client.probe()
+        assert time.monotonic() - started < 0.6
+    finally:
+        done.set()
+        other.join()
 
 
 def test_https_with_ca_bundle(https_pihole: FakePihole) -> None:
@@ -1410,8 +1765,6 @@ def _recorded_login_variants() -> list[Any]:
 def test_recorded_login_failures(
     fake_pihole: FakePihole, recorded: dict[str, Any], expected: type[Exception]
 ) -> None:
-    import json
-
     raw = json.dumps(recorded["body"]).encode()
     fake_pihole.fail("POST auth", status=recorded["status"], raw=raw)
     client, _ = no_sleep_client(fake_pihole.url)

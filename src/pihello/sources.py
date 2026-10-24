@@ -512,34 +512,63 @@ def fetch(
 
     Each failing source is recorded as a :class:`FetchProblem` and leaves its
     namespaces missing — except :class:`AuthenticationError`, which is raised
-    (no point continuing with bad credentials). Results are merged in source
-    order, so the outcome is deterministic.
+    (no point continuing with bad credentials). Once a source fails with
+    :class:`ConnectionFailed` (Pi-hole unreachable or not answering in time),
+    sources that haven't started yet are skipped and get the same error, so a
+    stalled Pi-hole costs one ``timeout``, not one per wave of workers.
+    Results are merged in source order, so the outcome is deterministic.
     """
     todo = tuple(dict.fromkeys(sources))
     outcomes: dict[Source, dict[str, Any] | PiholeError] = {}
+    unreachable: ConnectionFailed | None = None
     if len(todo) <= 1 or max_workers <= 1:
         for source in todo:
+            if unreachable is not None:
+                outcomes[source] = unreachable
+                continue
             try:
                 outcomes[source] = _run(client, source)
             except AuthenticationError:
                 raise
             except PiholeError as exc:
                 outcomes[source] = exc
+                if isinstance(exc, ConnectionFailed):
+                    unreachable = exc
     else:
+        import threading  # noqa: PLC0415
         from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: PLC0415
+
+        first_failure: list[ConnectionFailed] = []
+        lock = threading.Lock()
+
+        def task(source: Source) -> dict[str, Any] | None:
+            # The failing worker records the error before it can pick up the next
+            # source, so no new request starts once Pi-hole is known to be unreachable.
+            if first_failure:
+                return None
+            try:
+                return _run(client, source)
+            except ConnectionFailed as exc:
+                with lock:
+                    if not first_failure:
+                        first_failure.append(exc)
+                raise
 
         pool = ThreadPoolExecutor(
             max_workers=min(max_workers, len(todo)), thread_name_prefix="pihello-fetch"
         )
         try:
-            futures = {pool.submit(_run, client, source): source for source in todo}
+            futures = {pool.submit(task, source): source for source in todo}
             for future in as_completed(futures):
+                source = futures[future]
                 try:
-                    outcomes[futures[future]] = future.result()
+                    result = future.result()
                 except AuthenticationError:
                     raise
                 except PiholeError as exc:
-                    outcomes[futures[future]] = exc
+                    outcomes[source] = exc
+                else:
+                    outcomes[source] = first_failure[0] if result is None else result
         finally:
             pool.shutdown(wait=True, cancel_futures=True)
 
@@ -786,7 +815,7 @@ host.dmi.product.family | str | Product family (null if unknown)
 host.dmi.product.version | str | Product version (null if unknown)
 host.dmi.sys.vendor | str | System vendor (null if unknown)
 @sensors
-sensors.list | list | Temperature sensors found on the host (may be empty, e.g. FTL v6.6 or older in a container)
+sensors.list | list | Temperature sensors found on the host (may be empty, e.g. in a container with FTL v6.7.0 or older)
 sensors.list.N.name | str | Sensor driver name (e.g. "cpu_thermal", "k10temp")
 sensors.list.N.path | str | Short sysfs path of the sensor (e.g. "hwmon0")
 sensors.list.N.source | str | Device the sensor belongs to (sysfs path)
@@ -796,7 +825,7 @@ sensors.list.N.temps.N.value | float | Current temperature in sensors.unit
 sensors.list.N.temps.N.max | float | Maximum temperature in sensors.unit (null if unknown)
 sensors.list.N.temps.N.crit | float | Critical temperature in sensors.unit (null if unknown)
 sensors.list.N.temps.N.sensor | str | Reading id (e.g. "temp1")
-sensors.cpu_temp | float | CPU temperature in sensors.unit (best guess); null if FTL found no CPU sensor (always in containers before FTL v6.7)
+sensors.cpu_temp | float | CPU temperature in sensors.unit (best guess); null if FTL found no CPU sensor (always in containers before FTL v6.7.1)
 sensors.hot_limit | float | Temperature above which Pi-hole considers the CPU hot, in sensors.unit
 sensors.unit | str | Temperature unit: "C", "F" or "K"
 @ftl
@@ -864,7 +893,7 @@ database.owner.user.name | str | User name owning the database file
 database.owner.user.info | str | GECOS info of the owning user
 database.owner.group.gid | int | Group ID owning the database file
 database.owner.group.name | str | Group name owning the database file
-database.queries | int | Queries held in FTL's in-memory database
+database.queries | int | Queries held in FTL's in-memory database; before FTL v6.4, in the on-disk database
 database.earliest_timestamp | timestamp | Oldest query in the in-memory database; 0 if empty (FTL v6.4+)
 database.queries_disk | int | Queries stored in the on-disk database (FTL v6.4+)
 database.earliest_timestamp_disk | timestamp | Oldest query in the on-disk database; 0 if empty (FTL v6.4+)
