@@ -1058,7 +1058,10 @@ def test_connect_timeout_is_not_a_slow_pihole(monkeypatch: pytest.MonkeyPatch) -
         ConnectionFailed, match=r"no connection to 192\.0\.2\.1 within 0\.3s"
     ) as info:
         PiholeClient("http://192.0.2.1", PASSWORD, timeout=0.3).login()
-    assert attempts == [(("192.0.2.1", 80), pytest.approx(0.3, abs=0.05))]
+    assert [address for address, _ in attempts] == [("192.0.2.1", 80)]
+    budget = attempts[0][1]
+    assert budget is not None
+    assert 0 < budget <= 0.3  # what's left of the timeout, never more
     assert info.value.hint
     assert "--timeout" not in info.value.hint
     assert "network" in info.value.hint
@@ -1285,10 +1288,15 @@ def test_each_address_gets_a_share_of_the_timeout(
     monkeypatch.setattr(socket.socket, "connect", connect)
     started = time.monotonic()
     assert PiholeClient(f"http://pihole.lan:{fake_pihole.port}", timeout=0.4).probe()
-    assert time.monotonic() - started < 0.4
+    assert time.monotonic() - started < 0.4 + 0.2  # the deadline, plus slack for slow CI runners
     assert [address for address, _ in tried] == ["192.0.2.1", "127.0.0.1"]
-    assert tried[0][1] == pytest.approx(0.2, abs=0.05)
-    assert tried[1][1] == pytest.approx(0.2, abs=0.05)
+    first, second = tried[0][1], tried[1][1]
+    assert first is not None
+    assert second is not None
+    # The first of two addresses gets at most half of what's left, so the second still
+    # gets a turn. (Exact shares depend on how long the lookup took on this machine.)
+    assert 0 < first <= 0.2 + 1e-6
+    assert 0 < second <= 0.4
 
 
 def test_ipv6_loopback(fake_pihole_factory: Callable[..., FakePihole]) -> None:

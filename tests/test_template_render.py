@@ -463,17 +463,22 @@ def test_huge_values_render_quickly(value: str) -> None:
     import time
     import tracemalloc
 
+    def render() -> str:
+        return r("[@good]{x}[] {x|upper}", {"x": value}, width=80, height=24, color=NONE)
+
+    # Memory and time are measured separately: tracemalloc itself slows rendering
+    # down several times over (most on Windows CI runners).
     tracemalloc.start()
-    start = time.perf_counter()
     try:
-        output = r("[@good]{x}[] {x|upper}", {"x": value}, width=80, height=24, color=NONE)
-        elapsed = time.perf_counter() - start
+        output = render()
         peak = tracemalloc.get_traced_memory()[1]
     finally:
         tracemalloc.stop()
     assert len(output.split("\n")) == 24
-    assert elapsed < 1.0
     assert peak < 64 * 1024 * 1024 + 4 * len(value)  # the value and its upper() copy
+    start = time.perf_counter()
+    render()
+    assert time.perf_counter() - start < 1.0  # 32 MiB took 0.8 s and +173 MiB before
 
 
 def test_format_specs_pad_sanitized_data() -> None:
