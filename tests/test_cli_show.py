@@ -769,8 +769,16 @@ def test_watch_ends_cleanly_on_sigterm_and_sighup(
             os.close(master)
             master = -1
         proc.send_signal(getattr(signal, signame))
-        proc.wait(timeout=30)
-        while master >= 0 and read_available(0.5):
+        # Keep reading while it exits: macOS drops pty output that is still
+        # buffered when the child's side closes.
+        deadline = time.monotonic() + 30
+        while proc.poll() is None and time.monotonic() < deadline:
+            if master >= 0:
+                read_available(0.05)
+            else:
+                time.sleep(0.05)
+        proc.wait(timeout=5)
+        while master >= 0 and read_available(0.2):
             pass
     finally:
         if proc.poll() is None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -20,6 +21,10 @@ from .support import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+
+# The suite drives pihello through a pty (fcntl/termios) and needs a Linux
+# container runtime, so on Windows it isn't even collected (CI runs it on Linux).
+collect_ignore_glob = ["test_*.py"] if sys.platform == "win32" else []
 
 
 # --------------------------------------------------------------------------- #

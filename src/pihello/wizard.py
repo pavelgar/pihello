@@ -520,11 +520,13 @@ class Wizard:
         written = self.config_path.absolute()  # new shells start in another directory
         if written == config.find_config_path(None, self.env)[0].absolute():
             return ""
-        if shell == "powershell":  # single quotes, embedded ' doubled
-            return " --config '" + str(written).replace("'", "''") + "'"
+        path = str(written)
+        if shell == "powershell":  # single quotes with embedded ' doubled, when needed
+            plain = all(ch.isalnum() or ch in "@%+=:,./\\_-" for ch in path)
+            return " --config " + (path if plain else "'" + path.replace("'", "''") + "'")
         import shlex  # noqa: PLC0415
 
-        return " --config " + shlex.quote(str(written))
+        return " --config " + shlex.quote(path)
 
     def _probe(self) -> dict[str, Any]:
         started = time.perf_counter()

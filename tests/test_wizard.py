@@ -1255,3 +1255,14 @@ def test_powershell_snippet_quotes_the_config_path_for_powershell(
     quoted = "'" + str(target).replace("'", "''") + "'"
     assert f"pihello -q --config {quoted} }}" in out
     assert "Append it" not in out
+
+
+def test_powershell_snippet_leaves_a_plain_config_path_unquoted(
+    run_init: Callable[..., tuple[int, str, str]], tmp_path: Path
+) -> None:
+    target = tmp_path / "custom.toml"
+    code, out, _ = run_init(
+        ["--yes", "--no-check", "--config", str(target), "--shell", "powershell"]
+    )
+    assert code == 0, out
+    assert f"pihello -q --config {target} }}" in out

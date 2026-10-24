@@ -40,6 +40,7 @@ _SCRUBBED_ENV = (
     "XDG_CACHE_HOME",
     "APPDATA",
     "LOCALAPPDATA",
+    "PSModulePath",  # set on GitHub's Linux runners; makes the wizard detect PowerShell
 )
 
 

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, v2]
+    branches: [master]
   pull_request:
   workflow_dispatch:
   # publish.yml runs the whole pipeline before releasing and publishes the

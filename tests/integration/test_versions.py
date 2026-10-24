@@ -121,9 +121,10 @@ def test_wrong_method_and_unknown_endpoint(pihole: Target) -> None:
 def test_sensors_in_a_container(pihole: Target) -> None:
     sensors = pihole.get("info/sensors")["sensors"]
     assert sensors["unit"] in ("C", "F", "K")
-    if pihole.container is not None and pihole.ftl < (6, 7, 1):
-        assert sensors["list"] == []  # FTL found the host's hwmon devices from v6.7.1 on
-        assert sensors["cpu_temp"] is None
+    # What FTL sees in a container depends on the host's hwmon devices (and on the FTL
+    # version), so only the shape is checked; presets must cope with an empty list.
+    assert isinstance(sensors["list"], list)
+    assert sensors["cpu_temp"] is None or isinstance(sensors["cpu_temp"], (int, float))
 
 
 # --------------------------------------------------------------------------- #
