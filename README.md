@@ -1,61 +1,92 @@
+<div align="center">
+
+<img src="docs/assets/hero.svg" alt="pihello greeting a new terminal with a Pi-hole status summary" width="720">
+
 # pihello
 
-![pihello showing a Pi-hole status greeting in a terminal](https://raw.githubusercontent.com/pavelgar/pihello/master/docs/assets/hero.svg)
+**Your Pi-hole at a glance, every time you open a terminal.**
 
-pihello prints a short, colorful summary of your [Pi-hole](https://pi-hole.net)
-every time you open a terminal: whether ad blocking is on, how many queries were
-blocked today, versions and pending updates, and whatever else you want to see.
-It also works as a MOTD, a tmux or status bar segment, or a live dashboard.
-It's a small Python package without dependencies (only `tomli` on Python 3.10),
+[![PyPI](https://img.shields.io/pypi/v/pihello?color=96060C)](https://pypi.org/project/pihello/)
+[![Python](https://img.shields.io/pypi/pyversions/pihello)](https://pypi.org/project/pihello/)
+[![Pi-hole v6](https://img.shields.io/badge/Pi--hole-v6-96060C?logo=pihole&logoColor=white)](docs/compatibility.md)
+[![CI](https://github.com/pavelgar/pihello/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/pavelgar/pihello/actions/workflows/ci.yml)
+[![License](https://img.shields.io/pypi/l/pihello)](LICENSE)
+
+[Install](#install) · [Quick start](#quick-start) · [Presets](docs/presets.md) · [Themes](docs/themes.md) · [Templates](docs/templates.md) · [Docs](#documentation)
+
+</div>
+
+pihello prints a short, colorful summary of your [Pi-hole](https://pi-hole.net):
+whether ad blocking is on, how many queries were blocked today, versions and
+pending updates, and whatever else you want to see. Put it in your shell's
+startup file, a MOTD or a tmux status bar, or run it as a live dashboard.
+It's a small Python package with no dependencies (only `tomli` on Python 3.10),
 made for Pi-hole v6.
 
-- **Set up in a minute**: `pihello init` checks the address and password,
-  writes the config and prints the line for your shell's startup file.
-- **15 presets and 11 themes**, from a one-line status bar segment to a
-  full dashboard; every preset works with every theme.
-- **Your own templates** with styles, conditional colors, filters, bars and
-  sparklines, and over 200 [variables](https://github.com/pavelgar/pihello/blob/master/docs/variables.md).
-- **Quiet and fast**: only fetches what the template needs, can cache it, and
-  `-q` keeps new shells clean when the Pi-hole is offline.
-- **Careful with secrets**: the password can live in a private file, a
-  password manager or an environment variable, and is never printed.
-- `pihello doctor` explains what's wrong when something doesn't work.
+| ⚡ **Quick and quiet** | 🎨 **15 presets × 11 themes** | 🧩 **Your own templates** |
+| :-- | :-- | :-- |
+| Fetches only what the template shows, in parallel, and can cache it. `-q` keeps new shells clean when the Pi-hole is offline. | From a one-line tmux segment to a full dashboard. Every preset works with every theme. | Styles, conditional colors, filters, bars and sparklines, and over 200 [variables](docs/variables.md). |
+| 🪄 **Set up in a minute** | 🔐 **Careful with secrets** | ✅ **Every Pi-hole v6 release** |
+| `pihello init` checks the address and password, writes the config and prints the line for your shell. | Keep the password in a private file, a password manager or an environment variable. It's never printed. | [Tested](docs/compatibility.md) against v6.0 to v6.8, and `pihello doctor` explains what's wrong when something is. |
 
 ## Install
 
 ```sh
-pipx install pihello
-# or
-uv tool install pihello
-# or (refused by the system pip on Debian, Ubuntu and Raspberry Pi OS)
-pip install --user pihello
+pipx install pihello        # or: uv tool install pihello
 ```
 
-You need Python 3.10 or newer and Pi-hole **v6.0** or newer (every v6
-release is [tested](https://github.com/pavelgar/pihello/blob/master/docs/compatibility.md)). For Pi-hole v5, use
-`pihello==0.3.0`.
+You need Python 3.10 or newer and Pi-hole **v6.0** or newer. `pip install --user
+pihello` works too, except where the system pip refuses it (Debian, Ubuntu and
+Raspberry Pi OS). For Pi-hole v5, use `pihello==0.3.0`.
 
 ## Quick start
 
-```sh
-pihello init     # answer a few questions
-pihello          # there's your greeting
-```
+1. **Create an app password** in the Pi-hole web interface: *Settings → Web
+   interface / API → Configure app password*. App passwords also work with
+   two-factor authentication; your normal password works too if 2FA is off.
+2. **Run `pihello init`** and answer a few questions. It tests the connection,
+   saves the config and offers to add the greeting to your shell.
+3. **Open a new terminal.** There's your Pi-hole.
 
-pihello logs in with a Pi-hole **app password**. To create one, open the
-Pi-hole web interface, go to *Settings → Web interface / API*, click
-*Configure app password* and save it. App passwords also work with two-factor
-authentication; your normal password works too if 2FA is off.
+No Pi-hole at hand? `pihello --demo` shows everything with built-in sample data.
 
-No Pi-hole at hand? `pihello --demo` shows everything with built-in sample
-data.
+## A few of the looks
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/presets/dashboard.svg" alt="the dashboard preset"></td>
+    <td width="50%"><img src="docs/assets/presets/fetch.svg" alt="the fetch preset"></td>
+  </tr>
+  <tr>
+    <td><code>--preset dashboard</code>: PADD-style, with bars and 24 h sparklines</td>
+    <td><code>--preset fetch</code>: neofetch-style, with the Pi-hole logo</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/presets/box.svg" alt="the box preset"></td>
+    <td><img src="docs/assets/presets/top.svg" alt="the top preset"></td>
+  </tr>
+  <tr>
+    <td><code>--preset box</code>: a framed MOTD</td>
+    <td><code>--preset top</code>: top domains, blocked domains and clients</td>
+  </tr>
+</table>
+
+There's also `default`, `compact`, `minimal`, `status` for status bars, `plain`
+for logs, `classic` for the exact pihello 1.x greeting, and more. Pick the
+colors with `--theme`: `nord`, `dracula`, `gruvbox`, `catppuccin`, `solarized`,
+`tokyonight`, `monokai`, `pihole`, `classic16` or `mono`.
+
+**→ See them all in the [preset gallery](docs/presets.md) and the
+[theme gallery](docs/themes.md),** or in your own terminal with `pihello presets`
+and `pihello themes`.
 
 ## Shell greeting
 
 `pihello init` prints the snippet for your shell and can add it for you. Use
 `-q`, so an unreachable Pi-hole never puts error messages into a new shell.
 
-**bash**, in `~/.bashrc`:
+<details>
+<summary><b>bash</b> · <code>~/.bashrc</code></summary>
 
 ```bash
 # Pi-hole greeting (pihello)
@@ -64,7 +95,10 @@ if [[ $- == *i* ]] && command -v pihello >/dev/null 2>&1; then
 fi
 ```
 
-**zsh**, in `~/.zshrc`:
+</details>
+
+<details>
+<summary><b>zsh</b> · <code>~/.zshrc</code></summary>
 
 ```zsh
 # Pi-hole greeting (pihello)
@@ -73,8 +107,13 @@ if [[ -o interactive ]] && (( $+commands[pihello] )); then
 fi
 ```
 
-**fish**, in `~/.config/fish/conf.d/pihello.fish` (if you already have a
-`fish_greeting` function, add the `type -q …` line to it instead):
+</details>
+
+<details>
+<summary><b>fish</b> · <code>~/.config/fish/conf.d/pihello.fish</code></summary>
+
+If you already have a `fish_greeting` function, add the `type -q …` line to it
+instead.
 
 ```fish
 # Pi-hole greeting (pihello): replaces fish's default greeting
@@ -83,15 +122,23 @@ function fish_greeting
 end
 ```
 
-**PowerShell**, in `$PROFILE` (open it with `notepad $PROFILE`; create it first
-with `New-Item -Force $PROFILE` if it doesn't exist):
+</details>
+
+<details>
+<summary><b>PowerShell</b> · <code>$PROFILE</code></summary>
+
+Open it with `notepad $PROFILE`; create it first with `New-Item -Force $PROFILE`
+if it doesn't exist.
 
 ```powershell
 # Pi-hole greeting (pihello)
 if (Get-Command pihello -ErrorAction SilentlyContinue) { pihello -q }
 ```
 
-**MOTD** for every login on a machine, in `/etc/profile.d/pihello.sh`:
+</details>
+
+<details>
+<summary><b>MOTD</b> for every login · <code>/etc/profile.d/pihello.sh</code></summary>
 
 ```sh
 case $- in
@@ -99,42 +146,29 @@ case $- in
 esac
 ```
 
-**tmux and status bars**: the `status` preset is a short segment
-(`● 14.7% of 48.2k`). Bars do their own coloring, so turn colors off:
+</details>
+
+<details>
+<summary><b>tmux</b> and status bars</summary>
+
+The `status` preset is a short segment (`● 14.7% of 48.2k`). Bars do their own
+coloring, so turn colors off:
 
 ```tmux
 set -g status-interval 30
 set -g status-right '#(pihello -q --preset status --color never --cache 30) '
 ```
 
-[docs/usage.md](https://github.com/pavelgar/pihello/blob/master/docs/usage.md#shells-motd-and-status-bars) has more, including
+</details>
+
+[docs/usage.md](docs/usage.md#shells-motd-and-status-bars) has more, including
 starship, waybar and polybar.
-
-## Presets and themes
-
-Choose the layout with `--preset NAME` and the colors with `--theme NAME` (or
-`preset =` / `theme =` in the config file). A few of the presets:
-
-| Preset | Shows |
-| :-- | :-- |
-| `default` | status, versions, queries with a bar, clients, gravity |
-| `compact` | the essentials in three short lines |
-| `minimal` | `● Pi-hole · 48.2k queries · 14.7% blocked · 12 clients` |
-| `dashboard` | a PADD-style dashboard with bars and 24 h sparklines |
-| `fetch` | neofetch-style, with the Pi-hole logo |
-| `status` | a tiny segment for tmux and status bars |
-| `classic` | exactly the pihello 1.x greeting |
-
-Themes include `nord`, `dracula`, `gruvbox`, `catppuccin`, `solarized`,
-`tokyonight`, `monokai`, `pihole`, `classic16` and `mono`. See them all in the
-[preset gallery](https://github.com/pavelgar/pihello/blob/master/docs/presets.md) and the [theme gallery](https://github.com/pavelgar/pihello/blob/master/docs/themes.md), or
-in your own terminal with `pihello presets` and `pihello themes`.
 
 ## Customising
 
-Templates are plain text with `[style tags]` and `{expressions}`. Start from
-a preset (`pihello presets default --source > ~/.config/pihello/greeting.txt`)
-or from scratch:
+Templates are plain text with `[style tags]` and `{expressions}`. Start from a
+preset (`pihello presets default --source > ~/.config/pihello/greeting.txt`) or
+from scratch:
 
 ```text
 [@title]Pi-hole {version.core.local.version}[@muted] · [{blocking|map(enabled=@good, _=@bad)}]● {blocking}
@@ -143,18 +177,13 @@ or from scratch:
 [@label]24h     [@accent]{history|pluck(total)|spark(30)}
 ```
 
-```text
-Pi-hole v6.5 · ● enabled
-Blocked 7,099 of 48,220 (14.7%)
-Top ad  pagead2.googlesyndication.com
-24h     ▆▆▆▆▆▆▆▆▆▆▇▇███▇▇▅▄▃▂▁▁▁▁▁▂▃▄▅
-```
+<img src="docs/assets/readme-template.svg" alt="the template above, rendered with the catppuccin theme" width="632">
 
 Try it with `pihello --demo -f ~/.config/pihello/greeting.txt`, then replace
 the `preset` line in the config file with
 `template = "~/.config/pihello/greeting.txt"`. The
-[template guide](https://github.com/pavelgar/pihello/blob/master/docs/templates.md) covers the language and every filter;
-[docs/variables.md](https://github.com/pavelgar/pihello/blob/master/docs/variables.md) lists every variable.
+[template guide](docs/templates.md) covers the language and every filter, and
+[the variable reference](docs/variables.md) lists everything you can show.
 
 ## Commands
 
@@ -172,13 +201,13 @@ the `preset` line in the config file with
 | `pihello --cache SECONDS` | reuse data fetched less than SECONDS ago |
 | `pihello --demo` | use built-in demo data instead of a Pi-hole |
 
-Every command has `--help`; [docs/usage.md](https://github.com/pavelgar/pihello/blob/master/docs/usage.md) has examples for
-all of them.
+Every command has `--help`, and [the usage guide](docs/usage.md) has examples
+for all of them.
 
 ## Configuration
 
-`pihello init` writes `~/.config/pihello/config.toml` (`%APPDATA%\pihello\config.toml`
-on Windows):
+`pihello init` writes `~/.config/pihello/config.toml`
+(`%APPDATA%\pihello\config.toml` on Windows):
 
 ```toml
 url = "https://pi.hole"
@@ -194,7 +223,7 @@ password_command = "pass show pihole-backup"
 ```
 
 Command-line options and `PIHELLO_*` environment variables override the file.
-[docs/configuration.md](https://github.com/pavelgar/pihello/blob/master/docs/configuration.md) describes every setting,
+[The configuration guide](docs/configuration.md) describes every setting,
 password options, profiles, style overrides, HTTPS certificates and caching.
 
 ## Troubleshooting
@@ -202,33 +231,83 @@ password options, profiles, style overrides, HTTPS certificates and caching.
 Run **`pihello doctor`** first: it checks every step from the config file to
 the API session and says what to do about each problem.
 
-- **Nothing appears in new shells**: that's `-q` hiding an error. Run
-  `pihello` without `-q` to see it.
-- **New shells are slow when the Pi-hole is offline**: lower the network
-  timeout (`timeout = 1`, the default is 3 seconds).
-- **`could not resolve host 'pi.hole'`**: `pi.hole` only resolves on machines
-  that use the Pi-hole as their DNS server. Use its IP address or another
-  host name.
-- **`TLS certificate verification failed`**: Pi-hole's HTTPS certificate is
-  self-signed. Copy `/etc/pihole/tls_ca.crt` from the Pi-hole and use
-  `--ca-cert tls_ca.crt` (or `verify_tls = "tls_ca.crt"`). The certificate is
-  issued for `pi.hole`, so connect with that name. `-k` / `--insecure` skips
-  the check. [More on HTTPS](https://github.com/pavelgar/pihello/blob/master/docs/configuration.md#https-and-certificates).
-- **`two-factor authentication enabled`**: pihello can't enter TOTP codes.
-  Create an app password (see [Quick start](#quick-start)) and use that.
-- **`Pi-hole has no free API sessions`**: Pi-hole allows 16 API sessions at
-  a time by default (`webserver.api.max_sessions`). pihello always logs out, but other
-  tools may not. Old sessions expire after 30 minutes, or delete them under
-  *Settings → Web interface / API*.
-- **`Pi-hole is rate-limiting login attempts`**: Pi-hole accepts at most 3
-  logins per second, so opening many terminals at once (e.g. tmux restoring
-  panes) can trip it. pihello waits and retries briefly; set `cache_ttl = 30`
-  so new shells within 30 seconds reuse the last result instead of logging in.
-- **`?` instead of a value**: the value isn't available on your Pi-hole, or
-  the variable name has a typo. `pihello --strict` names the culprit,
-  `pihello vars` shows what's there.
-- **Wrong or no colors**: set `--color 256` or `--color truecolor`, check
-  that `NO_COLOR` isn't set, and use `--color always` when piping.
+<details>
+<summary>Nothing appears in new shells</summary>
+
+That's `-q` hiding an error. Run `pihello` without `-q` to see it.
+
+</details>
+
+<details>
+<summary>New shells are slow when the Pi-hole is offline</summary>
+
+Lower the network timeout: `timeout = 1` in the config (the default is 3
+seconds).
+
+</details>
+
+<details>
+<summary><code>could not resolve host 'pi.hole'</code></summary>
+
+`pi.hole` only resolves on machines that use the Pi-hole as their DNS server.
+Use its IP address or another host name.
+
+</details>
+
+<details>
+<summary><code>TLS certificate verification failed</code></summary>
+
+Pi-hole's HTTPS certificate is self-signed. Copy `/etc/pihole/tls_ca.crt` from
+the Pi-hole and use `--ca-cert tls_ca.crt` (or `verify_tls = "tls_ca.crt"`). The
+certificate is issued for `pi.hole`, so connect with that name. `-k` /
+`--insecure` skips the check.
+[More on HTTPS](docs/configuration.md#https-and-certificates).
+
+</details>
+
+<details>
+<summary><code>two-factor authentication enabled</code></summary>
+
+pihello can't enter TOTP codes. Create an app password (see
+[Quick start](#quick-start)) and use that.
+
+</details>
+
+<details>
+<summary><code>Pi-hole has no free API sessions</code></summary>
+
+Pi-hole allows 16 API sessions at a time by default
+(`webserver.api.max_sessions`). pihello always logs out, but other tools may
+not. Old sessions expire after 30 minutes, or delete them under *Settings → Web
+interface / API*.
+
+</details>
+
+<details>
+<summary><code>Pi-hole is rate-limiting login attempts</code></summary>
+
+Pi-hole accepts at most 3 logins per second, so opening many terminals at once
+(e.g. tmux restoring panes) can trip it. pihello waits and retries briefly; set
+`cache_ttl = 30` so new shells within 30 seconds reuse the last result instead
+of logging in.
+
+</details>
+
+<details>
+<summary><code>?</code> instead of a value</summary>
+
+The value isn't available on your Pi-hole, or the variable name has a typo.
+`pihello --strict` names the culprit, and `pihello vars` shows what's there.
+
+</details>
+
+<details>
+<summary>Wrong or no colors</summary>
+
+Set `--color 256` or `--color truecolor`, check that `NO_COLOR` isn't set, and
+use `--color always` when piping.
+
+</details>
 
 Still stuck? [Open an issue](https://github.com/pavelgar/pihello/issues) with
 the output of `pihello doctor` (it never contains your password).
@@ -238,25 +317,29 @@ the output of `pihello doctor` (it never contains your password).
 Your `pihello ADDR PASSWORD -f FILE …` command and template files keep
 working, and the `classic` preset is the exact 1.x look. Running
 `pihello init` once moves the password out of your shell history.
-[docs/upgrading.md](https://github.com/pavelgar/pihello/blob/master/docs/upgrading.md) lists every change.
+[The upgrade guide](docs/upgrading.md) lists every change.
 
 ## Documentation
 
-- [Usage](https://github.com/pavelgar/pihello/blob/master/docs/usage.md): every command, with examples and integrations
-- [Configuration](https://github.com/pavelgar/pihello/blob/master/docs/configuration.md): the config file, passwords, profiles, HTTPS, caching, all options
-- [Templates](https://github.com/pavelgar/pihello/blob/master/docs/templates.md): the template language and filter reference
-- [Variables](https://github.com/pavelgar/pihello/blob/master/docs/variables.md): every value you can show
-- [Presets](https://github.com/pavelgar/pihello/blob/master/docs/presets.md) and [themes](https://github.com/pavelgar/pihello/blob/master/docs/themes.md): the galleries
-- [Upgrading from 1.x](https://github.com/pavelgar/pihello/blob/master/docs/upgrading.md)
-- [Pi-hole compatibility](https://github.com/pavelgar/pihello/blob/master/docs/compatibility.md): tested versions and API details
-- [Architecture](https://github.com/pavelgar/pihello/blob/master/docs/architecture.md): how the code fits together
-- [Changelog](https://github.com/pavelgar/pihello/blob/master/CHANGELOG.md)
+| Guide | What's in it |
+| :-- | :-- |
+| [Usage](docs/usage.md) | every command, with examples and integrations |
+| [Configuration](docs/configuration.md) | the config file, passwords, profiles, HTTPS, caching, all options |
+| [Templates](docs/templates.md) | the template language and filter reference |
+| [Variables](docs/variables.md) | every value you can show |
+| [Presets](docs/presets.md) · [Themes](docs/themes.md) | the galleries |
+| [Upgrading from 1.x](docs/upgrading.md) | what changed and what still works |
+| [Pi-hole compatibility](docs/compatibility.md) | tested versions and API details |
+| [Architecture](docs/architecture.md) | how the code fits together |
+| [Changelog](CHANGELOG.md) | release notes |
 
 ## Development
 
-Contributions are welcome. [CONTRIBUTING.md](https://github.com/pavelgar/pihello/blob/master/CONTRIBUTING.md) explains the
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains the
 setup (`uv sync`), the checks and the tests.
 
-## License
+---
 
-[MIT](https://github.com/pavelgar/pihello/blob/master/LICENSE)
+<div align="center">
+<sub>MIT licensed · pihello is an independent project, not affiliated with Pi-hole LLC.</sub>
+</div>

@@ -6,6 +6,7 @@ Writes, deterministically (fixed ``demo.NOW``, fixed widths):
 * ``docs/assets/presets/<preset>.svg`` - every preset with the ``default`` theme
 * ``docs/assets/themes/<theme>.svg``   - the ``default`` preset in every theme
 * ``docs/assets/hero.svg``             - the README hero image
+* ``docs/assets/readme-template.svg``  - the README's custom-template example
 * ``docs/presets.md`` and ``docs/themes.md`` - the gallery pages
 
 Usage::
@@ -86,6 +87,16 @@ THEME_TERMINALS: dict[str, TerminalTheme] = {
 }
 
 
+#: The custom template shown in README.md ("Customising"); keep the two in sync.
+README_TEMPLATE = """\
+[@title]Pi-hole {version.core.local.version}[@muted] · [{blocking|map(enabled=@good, _=@bad)}]● {blocking}
+[@label]Blocked [@highlight]{queries.blocked|number}[@muted] of {queries.total|number} ({queries.percent_blocked|percent})
+[@label]Top ad  [@highlight]{top_blocked.0.domain|default("none")}
+[@label]24h     [@accent]{history|pluck(total)|spark(30)}
+"""  # noqa: E501 - template lines are long
+README_THEME = "catppuccin"
+
+
 @dataclass(frozen=True)
 class Shot:
     """One screenshot: where it goes, what it shows and how it is framed."""
@@ -143,6 +154,21 @@ def shots() -> list[Shot]:
                 terminal=THEME_TERMINALS.get(theme.name, DARK),
             )
         )
+    example = Template.parse(README_TEMPLATE, name="README example").render(
+        demo.variables(),
+        theme=themes.resolve(README_THEME),
+        options=RenderOptions(color=ColorDepth.TRUECOLOR, strict=True, now=demo.NOW),
+    )
+    result.append(
+        Shot(
+            path=ASSETS / "readme-template.svg",
+            title=f"pihello -f greeting.txt -T {README_THEME}",
+            ansi=example,
+            # wide enough that the centred title clears the window buttons
+            width=max(*(len(line) for line in example_plain(example)), 38 + 16) + 2,
+            terminal=THEME_TERMINALS[README_THEME],
+        )
+    )
     prompt = "\x1b[1;38;2;80;250;123m~\x1b[0m \x1b[38;2;189;147;249m\u276f\x1b[0m "
     result.append(
         Shot(
@@ -155,6 +181,13 @@ def shots() -> list[Shot]:
         )
     )
     return result
+
+
+def example_plain(ansi: str) -> list[str]:
+    """The lines of ``ansi`` without escape sequences."""
+    from pihello.template import strip_ansi  # noqa: PLC0415
+
+    return strip_ansi(ansi).split("\n")
 
 
 def _details(source: str) -> str:

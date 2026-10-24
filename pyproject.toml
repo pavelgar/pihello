@@ -1,12 +1,11 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.27", "hatch-fancy-pypi-readme>=24.1"]
 build-backend = "hatchling.build"
 
 [project]
 name = "pihello"
-dynamic = ["version"]
+dynamic = ["version", "readme"]
 description = "A fast, configurable Pi-hole v6 status greeting for your terminal"
-readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "pavelgar", email = "pavel.garmuyev@gmail.com" }]
@@ -64,6 +63,22 @@ lint = [
 docs = [
     "rich>=14",
 ]
+
+# README.md uses relative links so it renders on every branch on GitHub; PyPI
+# gets absolute ones pointing at the default branch.
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = 'src="(docs/[^"]+)"'
+replacement = 'src="https://raw.githubusercontent.com/pavelgar/pihello/master/\1"'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\(((?:docs/|CHANGELOG\.md|CONTRIBUTING\.md|LICENSE)[^)]*)\)'
+replacement = '](https://github.com/pavelgar/pihello/blob/master/\1)'
 
 [tool.hatch.version]
 path = "src/pihello/__init__.py"
