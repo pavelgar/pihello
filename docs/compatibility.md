@@ -212,6 +212,14 @@ Stable shapes pihello relies on (all versions):
 - `info/system` (memory, load, uptime, process count) always describes the *host kernel*, also inside a container.
   `network/*` describes the container's network namespace — with rootless podman's default (pasta) network that mirrors the host's interfaces and addresses, which is why the recorder uses its own bridge network.
 
+## Keep-alive
+
+From FTL v6.1 on, the web server leaves Nagle's algorithm on (no `TCP_NODELAY`), so every response after the first on a reused (keep-alive) connection arrives about 40 ms late: six `GET /api/info/login` requests over one connection took 206 ms, against 2 ms over six new connections.
+FTL v6.0.x (`2025.02.0`, `2025.03.0`) doesn't show it (2 ms either way); every later recorded release does (`2025.04.0` to `2026.10.0`).
+`webserver.advancedOpts = [ "tcp_nodelay=1" ]` (Docker: `FTLCONF_webserver_advancedOpts=tcp_nodelay=1`) removes it (1.3 ms on `2026.10.0`); setting it at runtime with `pihole-FTL --config` makes FTL restart itself.
+Reverse proxies that keep upstream connections alive (Caddy by default) hit this on every request.
+pihello doesn't reuse connections, so it isn't affected when it talks to Pi-hole directly.
+
 ## TLS
 
 Every version creates `/etc/pihole/tls.pem` (key + cert), `tls.crt` and a CA `/etc/pihole/tls_ca.crt` on first start; the server certificate's CN and only SAN is **`pi.hole`** (from `webserver.domain`), issued by a CA also named `pi.hole`.

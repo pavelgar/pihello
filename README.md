@@ -29,7 +29,10 @@ It's a pure-Python package of about 160 KB (1.2 MB installed) with no dependenci
 
 <sub>Timings: median of 15 runs of the installed package, Python 3.14 on a Ryzen 5 7500F,
 against a Pi-hole 2026.10.0 container on the same machine. About 35 ms of that is Pi-hole
-checking the password at login, which takes longer on a Raspberry Pi.</sub>
+checking the password at login, which takes longer on a Raspberry Pi. Against a real Pi-hole
+(FTL v6.7.1 in Docker on an x86 mini PC) behind a Caddy HTTPS proxy on the same LAN, the
+default greeting took 0.18 s, with the
+[reverse-proxy fix](docs/troubleshooting.md#slow-greeting-behind-a-reverse-proxy).</sub>
 
 ## Install
 

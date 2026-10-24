@@ -40,12 +40,31 @@ When the Pi-hole is online, a [cache](configuration.md#caching) (`cache_ttl = 30
 
 ### Slow greeting behind a reverse proxy
 
-Pi-hole's web server answers about 40 ms late on every reused (keep-alive) connection.
-A reverse proxy that keeps its connections to Pi-hole open, like Caddy does by default, adds that delay to every API request, so a greeting takes two to three times as long.
+Since FTL v6.1, Pi-hole's web server answers about 40 ms late on every reused (keep-alive) connection, because it leaves Nagle's algorithm on (no `TCP_NODELAY`).
+A reverse proxy that keeps its connections to Pi-hole open, like Caddy does by default, adds that delay to every API request, so a greeting takes up to twice as long.
 It slows down Pi-hole's own web interface too.
 `pihello --debug` shows it: every request takes 40 ms or more, even `info/login`.
 
-In Caddy, turn off keep-alive to Pi-hole:
+The best fix is on the Pi-hole, because it helps every proxy and client: set the web server option `tcp_nodelay=1`.
+Pi-hole restarts its FTL service by itself after the change, which takes about a second.
+
+```sh
+# Docker: add this to the container's environment
+FTLCONF_webserver_advancedOpts=tcp_nodelay=1
+
+# bare-metal install
+sudo pihole-FTL --config webserver.advancedOpts '["tcp_nodelay=1"]'
+```
+
+Or in `/etc/pihole/pihole.toml`, in the `[webserver]` section:
+
+```toml
+# /etc/pihole/pihole.toml
+advancedOpts = [ "tcp_nodelay=1" ]
+```
+
+If you can't change the Pi-hole, turn off keep-alive in the proxy instead.
+In Caddy:
 
 ```caddyfile
 # Caddyfile
@@ -58,7 +77,9 @@ pihole.example.lan {
 }
 ```
 
-With Pi-hole `2026.10.0` behind Caddy 2, one API request took 41 ms with Caddy's default settings and 0.8 ms with `keepalive off`, and a greeting 190 ms instead of 101 ms.
+Measured with Pi-hole `2026.10.0` containers: six requests over one reused connection took 206 ms by default and 1.3 ms with `tcp_nodelay=1`.
+Behind Caddy 2, one API request took 41 ms with Caddy's default settings and 0.8 ms with `keepalive off`, and a greeting 190 ms instead of 101 ms.
+A real Pi-hole (FTL v6.7.1) behind Caddy went from 0.26 s to 0.18 s per greeting with `tcp_nodelay=1`.
 nginx only reuses upstream connections if its `upstream` block has a `keepalive` directive; without one it isn't affected.
 
 ## Connection
