@@ -2,7 +2,7 @@
 {# Status (with disable timer and update hint), versions with ↑ markers,  #}
 {# today's queries with a blocked-percentage bar, clients, gravity and    #}
 {# the most recently blocked domain. Works with every theme.              #}
-[@title]Pi-hole[@muted] on [@subtitle]{pihole.host}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if("  ")}[@warn]{updates.available|if("↑ update available")}
+[@title]Pi-hole[@muted] on [@subtitle]{pihole.host|truncate(16)}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if("  ")}[@warn]{updates.available|if("↑ updates")}
 [@border]{"─"|repeat(60)}
 [@label]Versions   [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}
 [@label]Queries    [@accent]{queries.total|number}[@muted] today · [@highlight]{queries.blocked|number}[@muted] blocked

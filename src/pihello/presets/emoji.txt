@@ -1,6 +1,6 @@
 {# emoji: a playful greeting. Only uses emoji that terminals always draw two #}
 {# cells wide (no variation selectors), so the layout stays aligned.        #}
-[@title]👋 Hello from Pi-hole [@value]{version.core.local.version}[@muted] on [@subtitle]{pihole.host}
+[@title]👋 Hello from Pi-hole [@value]{version.core.local.version}[@muted] on [@subtitle]{pihole.host|truncate(16)}
 []{blocking|map(enabled="🟢", disabled="🔴", _="🟡")} [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]blocking {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
 []📊 [@accent]{queries.total|number}[@muted] queries today
 []🛑 [@highlight]{queries.blocked|number}[@muted] blocked, that's [@highlight]{queries.percent_blocked|percent}

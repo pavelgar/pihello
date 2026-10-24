@@ -119,6 +119,15 @@ def _disabled(variables: Mapping[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _long_host(variables: Mapping[str, Any]) -> dict[str, Any]:
+    """Demo data as a real Pi-hole reported it: a long host name, two-digit durations."""
+    data = copy.deepcopy(dict(variables))
+    data["pihole"]["host"] = "pihole-1.home.example.net"
+    data["gravity"]["relative"] = {"days": 99, "hours": 23, "minutes": 59}
+    data["gravity"]["last_update"] = demo.NOW - (99 * 86400 + 23 * 3600 + 59 * 60)
+    return data
+
+
 def _long_values(variables: Mapping[str, Any]) -> dict[str, Any]:
     """Demo data with unusually long strings everywhere."""
     data = _disabled(variables)
@@ -266,10 +275,12 @@ def test_preset_theme_changes_the_output(preset: presets.Preset) -> None:
 
 @pytest.mark.parametrize("preset", ALL_PRESETS, ids=PRESET_IDS)
 def test_min_width_is_honest(preset: presets.Preset) -> None:
-    # Typical data and the widest realistic state: disabled on a timer, updates pending.
+    # Typical data, the widest realistic state (disabled on a timer, updates
+    # pending), and the longer values real Pi-holes report (host name, durations).
     lines = [
         *_render(preset).split("\n"),
         *_render(preset, _disabled(demo.variables())).split("\n"),
+        *_render(preset, _long_host(demo.variables())).split("\n"),
     ]
     widest = max(visible_width(line) for line in lines)
     assert widest <= preset.min_width, f"widest line is {widest} columns"
@@ -294,7 +305,20 @@ def test_default_shows_the_disable_timer_and_update_hint() -> None:
     text = _render(presets.get("default"), _disabled(demo.variables()))
     first = text.split("\n")[0]
     assert "● disabled for 4m" in first
-    assert "update available" in first
+    assert "↑ updates" in first
+
+
+@pytest.mark.parametrize(("name", "ellipsis"), [("default", "…"), ("plain", "...")])
+def test_long_host_names_are_shortened(name: str, ellipsis: str) -> None:
+    # Found on a real Pi-hole: a 20-character host name pushed the first line past
+    # min_width. The greeting presets fit even with the Pi-hole disabled as well.
+    preset = presets.get(name)
+    text = _render(preset, _long_host(_disabled(demo.variables())))
+    first = text.split("\n")[0]
+    host = "pihole-1.home.example.net"
+    assert host[: 16 - len(ellipsis)] + ellipsis in first  # 16 columns, ellipsis included
+    assert "pihole-1.home.example.net" not in first
+    assert max(visible_width(line) for line in text.split("\n")) <= preset.min_width
 
 
 def _no_update_info(variables: Mapping[str, Any]) -> dict[str, Any]:

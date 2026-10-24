@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The `default`, `emoji`, `full` and `plain` presets shorten host names to 16 characters, so a long name no longer pushes the first line past the preset's minimum width (found on a real Pi-hole with a 20-character host name).
+- `default` says `↑ updates` instead of `↑ update available` (as `box` does), and `plain` says `updates`, so the first line fits even with a long host name and blocking disabled.
+- The minimum widths of `classic` (56) and `emoji` (52) account for two-digit durations such as `10 hours`.
+
 ## [2.0.0rc1] - 2026-10-24
 
 Release candidate for 2.0.0. Install it with `pipx install --pip-args=--pre pihello`, `uv tool install --prerelease=allow pihello` or `pip install --pre pihello`; plain installs still get 1.0.0.
@@ -198,6 +206,7 @@ Initial prototype
 - .gitignore
 - Proof of concept on how to create this command line utility.
 
+[Unreleased]: https://github.com/pavelgar/pihello/compare/v2.0.0rc1...HEAD
 [2.0.0rc1]: https://github.com/pavelgar/pihello/compare/v1.0.0...v2.0.0rc1
 [1.0.0]: https://github.com/pavelgar/pihello/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/pavelgar/pihello/compare/v0.2.7...v0.3.0
