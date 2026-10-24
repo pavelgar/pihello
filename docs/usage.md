@@ -300,8 +300,11 @@ previous one.
 ## `--cache`: faster shell start
 
 With `--cache SECONDS` (or `cache_ttl` in the config file), pihello reuses
-data it fetched less than SECONDS ago, without contacting the Pi-hole. Useful
-when you open many terminals, or for a status bar that refreshes often:
+data it fetched less than SECONDS ago, without contacting the Pi-hole. A cache
+hit took 53 ms instead of 100 ms for the default preset in the
+[measurement in the README](../README.md), and Pi-hole doesn't have to check
+the password, which matters more on a Raspberry Pi. Useful when you open many
+terminals, or for a status bar that refreshes often:
 
 ```sh
 pihello -q --cache 60
@@ -404,8 +407,9 @@ format = "[$output]($style) "
 style = "green"
 ```
 
-starship gives custom commands 500 ms by default (`command_timeout`); the
-cache keeps pihello well below that after the first prompt.
+starship gives custom commands 500 ms by default (`command_timeout`). pihello
+took about 100 ms live and 50 ms from the cache on a desktop (live takes longer
+when the Pi-hole is a Raspberry Pi), so the cache keeps a safe margin.
 
 ### waybar, polybar and others
 

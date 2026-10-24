@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pihello"
 dynamic = ["version", "readme"]
-description = "A fast, configurable Pi-hole v6 status greeting for your terminal"
+description = "A configurable Pi-hole v6 status greeting for your terminal"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "pavelgar", email = "pavel.garmuyev@gmail.com" }]

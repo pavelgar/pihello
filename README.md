@@ -20,14 +20,18 @@ pihello prints a short, colorful summary of your [Pi-hole](https://pi-hole.net):
 whether ad blocking is on, how many queries were blocked today, versions and
 pending updates, and whatever else you want to see. Put it in your shell's
 startup file, a MOTD or a tmux status bar, or run it as a live dashboard.
-It's a small Python package with no dependencies (only `tomli` on Python 3.10),
-made for Pi-hole v6.
+It's a pure-Python package of about 160 KB (1.2 MB installed) with no
+dependencies (only `tomli` on Python 3.10), made for Pi-hole v6.
 
-| ⚡ **Quick and quiet** | 🎨 **15 presets × 11 themes** | 🧩 **Your own templates** |
+| ⚡ **About 0.1 s per greeting** | 🎨 **15 presets × 11 themes** | 🧩 **Your own templates** |
 | :-- | :-- | :-- |
-| Fetches only what the template shows, in parallel, and can cache it. `-q` keeps new shells clean when the Pi-hole is offline. | From a one-line tmux segment to a full dashboard. Every preset works with every theme. | Styles, conditional colors, filters, bars and sparklines, and over 200 [variables](docs/variables.md). |
-| 🪄 **Set up in a minute** | 🔐 **Careful with secrets** | ✅ **Every Pi-hole v6 release** |
-| `pihello init` checks the address and password, writes the config and prints the line for your shell. | Keep the password in a private file, a password manager or an environment variable. It's never printed. | [Tested](docs/compatibility.md) against v6.0 to v6.8, and `pihello doctor` explains what's wrong when something is. |
+| The default preset needs 6 API requests: a login, 4 fetches in parallel for just what it shows, and a logout. 0.05 s from the optional cache. `-q` keeps new shells clean when the Pi-hole is offline. | From a one-line tmux segment to a full dashboard. Every preset works with every theme. | Styles, conditional colors, filters, bars and sparklines, and [245 variables](docs/variables.md). |
+| 🪄 **Guided setup** | 🔐 **Careful with secrets** | ✅ **Every Pi-hole v6 release** |
+| `pihello init` takes you through five steps (address, password, preset, theme, save), tests the connection and prints the line for your shell. | Keep the password in a private file, a password manager or an environment variable. It's never printed. | [Tested](docs/compatibility.md) against 11 Pi-hole releases, v6.0 to v6.8, and `pihello doctor` explains what's wrong when something is. |
+
+<sub>Timings: median of 15 runs of the installed package, Python 3.14 on a Ryzen 5 7500F,
+against a Pi-hole 2026.10.0 container on the same machine. About 35 ms of that is Pi-hole
+checking the password at login, which takes longer on a Raspberry Pi.</sub>
 
 ## Install
 
@@ -44,8 +48,9 @@ Raspberry Pi OS). For Pi-hole v5, use `pihello==0.3.0`.
 1. **Create an app password** in the Pi-hole web interface: *Settings → Web
    interface / API → Configure app password*. App passwords also work with
    two-factor authentication; your normal password works too if 2FA is off.
-2. **Run `pihello init`** and answer a few questions. It tests the connection,
-   saves the config and offers to add the greeting to your shell.
+2. **Run `pihello init`**: five steps for the address, password, preset, theme
+   and saving. It tests the connection, writes the config and offers to add the
+   greeting to your shell.
 3. **Open a new terminal.** There's your Pi-hole.
 
 No Pi-hole at hand? `pihello --demo` shows everything with built-in sample data.
@@ -287,9 +292,9 @@ interface / API*.
 <summary><code>Pi-hole is rate-limiting login attempts</code></summary>
 
 Pi-hole accepts at most 3 logins per second, so opening many terminals at once
-(e.g. tmux restoring panes) can trip it. pihello waits and retries briefly; set
-`cache_ttl = 30` so new shells within 30 seconds reuse the last result instead
-of logging in.
+(e.g. tmux restoring panes) can trip it. pihello retries up to twice, after a
+random 0.35–1.1 s pause and within the timeout; set `cache_ttl = 30` so new
+shells within 30 seconds reuse the last result instead of logging in.
 
 </details>
 
