@@ -123,7 +123,9 @@ def test_redirected_preset_source_is_utf8(
     monkeypatch.setattr(cli, "_stdout", lambda: stream)
     assert main(["presets", "default", "--source"]) == 0
     stream.flush()
-    assert raw.getvalue().decode("utf-8") == presets.get("default").source
+    # Windows text streams write \r\n; templates accept either line ending.
+    text = raw.getvalue().decode("utf-8").replace("\r\n", "\n")
+    assert text == presets.get("default").source
 
 
 @pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16"])
