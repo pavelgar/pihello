@@ -1,15 +1,13 @@
 # Architecture
 
-> This document is the source of truth for how pihello is put together and
-> the contracts between its modules. If you change an interface, update this
-> file in the same pull request.
+> [!IMPORTANT]
+> This document is the source of truth for how pihello is put together and the contracts between its modules.
+> If you change an interface, update this file in the same pull request.
 
-pihello renders a short, styled status message about a Pi-hole **v6** instance
-(any `v6.x` release) for use as a terminal greeting, MOTD, status-bar segment or
-script input. It has **zero runtime dependencies** on Python ≥ 3.11 (`tomli` is
-pulled in on 3.10 only) and must stay fast: it runs every time a shell opens.
+pihello renders a short, styled status message about a Pi-hole **v6** instance (any `v6.x` release) for use as a terminal greeting, MOTD, status-bar segment or script input.
+It has **zero runtime dependencies** on Python ≥ 3.11 (`tomli` is pulled in on 3.10 only) and must stay fast: it runs every time a shell opens.
 
-```
+```text
              ┌────────────┐   paths    ┌─────────────┐  endpoints  ┌──────────────┐
  template ──▶│ Template   │──────────▶ │ sources     │ ──────────▶ │ PiholeClient │──▶ Pi-hole /api
  (preset /   │ .parse()   │            │ .plan()     │             │ (urllib)     │
@@ -20,15 +18,20 @@ pulled in on 3.10 only) and must stay fast: it runs every time a shell opens.
               ANSI text ──▶ stdout
 ```
 
-User documentation lives next to this file: [usage.md](usage.md),
-[configuration.md](configuration.md), [templates.md](templates.md) and
-[variables.md](variables.md). The filter reference in `templates.md` and the
-whole of `variables.md` are generated from `filters.catalog()` and
-`sources.catalog()` by `scripts/gen_docs.py`.
+User documentation lives next to this file; the [documentation index](README.md) lists it.
+[Filters](filters.md) and [Variables](variables.md) are generated from `filters.catalog()` and `sources.catalog()` by `scripts/gen_docs.py`,
+and the [preset](presets.md) and [theme](themes.md) galleries by `scripts/render_screenshots.py`.
+
+**On this page:** [Package layout](#package-layout) · [Exit codes](#exit-codes-pihelloerrors) · [Template language](#template-language) ·
+[Terminal](#terminal-pihelloterminal) · [Variables and data sources](#variables-and-data-sources-pihellosources) ·
+[Pi-hole client](#pi-hole-client-pihelloclient) · [Cache](#cache-pihellocache) · [Demo data](#demo-data-pihellodemo) ·
+[Presets and themes](#presets-and-themes) · [Configuration](#configuration-pihelloconfig) · [Command line](#command-line-pihellocli) ·
+[Setup wizard](#setup-wizard-pihellowizard) · [Diagnostics](#diagnostics-pihellodoctor) ·
+[Shell completion](#shell-completion-pihellocompletion) · [Testing](#testing)
 
 ## Package layout
 
-```
+```text
 src/pihello/
 ├── __init__.py        # __version__ only (keep imports cheap)
 ├── __main__.py        # python -m pihello
@@ -62,7 +65,7 @@ src/pihello/
 
 ## Exit codes (`pihello.errors`)
 
-| Code | Constant          | Meaning                                                        |
+| Code | Constant          | Description                                                        |
 | ---: | :---------------- | :------------------------------------------------------------- |
 |    0 | `EXIT_OK`         | success                                                        |
 |    1 | `EXIT_INTERNAL`   | unexpected internal error (a bug)                              |
@@ -71,34 +74,28 @@ src/pihello/
 |    4 | `EXIT_AUTH`       | authentication failed (`AuthenticationError`, `TwoFactorRequired`, `TooManySessions`) |
 |    5 | `EXIT_API`        | unexpected API response (`APIError`, `EndpointNotFound`)       |
 
-The CLI also returns 130 on Ctrl-C (`--watch` returns 0) and 0 on a broken
-pipe.
+The CLI also returns 130 on Ctrl-C (`--watch` returns 0) and 0 on a broken pipe.
 
-All intentional errors subclass `PiHelloError(message, *, hint=None)`, whose
-`exit_code` class attribute selects the code (`PiholeError` is the base of the
-network/API errors). The CLI prints `pihello: <message>`, then, for a
-`TemplateError`, its `excerpt` indented, then `hint: <hint>` when present, all
-to **stderr**. `TemplateError(message, *, source_name, line, column, hint,
-excerpt)` renders as `<source_name>:<line>:<column>: <message>` and keeps the
-bare message in `.reason`; `excerpt` is the offending source line with a caret
-under the column. `APIError` carries `status`, `key`, `api_message` and `path`.
+All intentional errors subclass `PiHelloError(message, *, hint=None)`, whose `exit_code` class attribute selects the code (`PiholeError` is the base of the network/API errors).
+The CLI prints `pihello: <message>`, then, for a `TemplateError`, its `excerpt` indented, then `hint: <hint>` when present, all to **stderr**.
+`TemplateError(message, *, source_name, line, column, hint, excerpt)` renders as `<source_name>:<line>:<column>: <message>` and keeps the bare message in `.reason`; `excerpt` is the offending source line with a caret under the column.
+`APIError` carries `status`, `key`, `api_message` and `path`.
 
 ## Template language
 
-Templates are plain UTF-8 text. Everything is literal except three constructs.
-pihello 1.x templates keep working; the only syntax differences are that `\]`,
-`\}` and `\\` are now escapes (1.x printed them verbatim) and that `normal`
-resets the style (1.x emitted SGR 10).
+Templates are plain UTF-8 text (a UTF-16 BOM, as Windows PowerShell 5.1's `>` writes, is honoured when a file is read).
+Everything is literal except three constructs.
+pihello 1.x templates keep working; the only syntax differences are that `\]`, `\}` and `\\` are now escapes (1.x printed them verbatim) and that `normal` resets the style (1.x emitted SGR 10).
 
-### 1. Style tags — `[ ... ]`
+### Style tags
 
-A tag **replaces** the whole current style (it is not additive). `[]` resets.
+A tag **replaces** the whole current style (it is not additive).
+`[]` resets.
 The active style carries across newlines.
 
-Words inside a tag are separated by whitespace, case-insensitive, any order;
-within one tag later words override earlier ones for the same slot:
+Words inside a tag are separated by whitespace, case-insensitive, any order; within one tag later words override earlier ones for the same slot:
 
-| Word                                  | Meaning                                  |
+| Word                                  | Description                                  |
 | :------------------------------------ | :--------------------------------------- |
 | `bold`                                | SGR 1                                    |
 | `dim`, `faint`                        | SGR 2                                    |
@@ -118,20 +115,15 @@ within one tag later words override earlier ones for the same slot:
 | `@<name>`                             | expands to the active theme's style `<name>` |
 | `{expr}`                              | expression output is spliced in and parsed as words (conditional styling) |
 
-Colors: an xterm color name (`steelblue`, `grey37`, … see `color_tables.py`;
-`_`, `-`, spaces and `gray`/`grey` spellings are normalised), `color(N)` with
-0 ≤ N ≤ 255, `#rrggbb`, `#rgb`, `rgb(r, g, b)` or `default`.
+Colors: an xterm color name (`steelblue`, `grey37`, … see `color_tables.py`; `_`, `-`, spaces and `gray`/`grey` spellings are normalised), `color(N)` with 0 ≤ N ≤ 255, `#rrggbb`, `#rgb`, `rgb(r, g, b)` or `default`.
 
-Static tags are validated and built at parse time. Tags with `@name` or
-`{expr}` are built at render time: an unknown `@name` written in the template
-(including inside the tag's expressions, e.g. `map(enabled=@good)`) is a
-`TemplateError` on every render, whatever branch the data selects. Words that
-*data* produces and that aren't valid styles (or unknown `@name`s) are dropped,
-unless `RenderOptions.strict`, which makes them errors.
+Static tags are validated and built at parse time.
+Tags with `@name` or `{expr}` are built at render time: an unknown `@name` written in the template (including inside the tag's expressions, e.g. `map(enabled=@good)`) is a `TemplateError` on every render, whatever branch the data selects.
+Words that *data* produces and that aren't valid styles (or unknown `@name`s) are dropped, unless `RenderOptions.strict`, which makes them errors.
 
-### 2. Expressions — `{ ... }`
+### Expressions
 
-```
+```text
 { head ( | filter )* ( :format_spec )? }
 head    := path | "string" | 'string' | number
 path    := key ( . key )*          key chars: A-Z a-z 0-9 _ % -
@@ -140,57 +132,42 @@ arg     := "str" | 'str' | int | float | true | false | none | null | bareword
 ```
 
 - Whitespace around tokens is ignored: `{ queries.total | number }`.
-- Path segments that are integers index into lists; negative ones count from
-  the end: `{top_domains.0.domain}`, `{top_domains.-1.domain}`. A flat mapping
-  with dotted keys (`{"queries.total": 1}`) works too.
+- Path segments that are integers index into lists; negative ones count from the end: `{top_domains.0.domain}`, `{top_domains.-1.domain}`.
+  A flat mapping with dotted keys (`{"queries.total": 1}`) works too.
 - Strings understand `\<quote>`, `\\`, `\n` and `\t`.
-- A bareword argument (`@good`, `enabled`, `v6.5`) is a string; barewords that
-  look like numbers are numbers. Arguments are literals only.
+- A bareword argument (`@good`, `enabled`, `v6.5`) is a string; barewords that look like numbers are numbers.
+  Arguments are literals only.
 - Filter names are case-insensitive.
 - `:format_spec` is a Python format spec applied last: `{queries.percent_blocked:.2f}`, `{x:>8}`.
-  A `:` inside parentheses or quotes belongs to the filter arguments. Specs are
-  checked at parse time (and limited to widths/precisions ≤ 999). At render
-  time bools and lists are turned into text first and numeric strings are
-  tried as numbers; a spec that doesn't fit the value falls back to the
-  default rendering (strict: `TemplateError`).
-- **Missing values**: a path that does not resolve (endpoint unavailable on this
-  Pi-hole, key absent, value `null`) yields `None`. Filters pass `None` through
-  unchanged, except `default`, `if`, `not` and the comparison filters. A filter
-  that raises yields `None` (strict: `TemplateError`). A `None`
-  that reaches the output renders as `RenderOptions.missing` (default `?`) or,
-  with `RenderOptions.strict`, raises `TemplateError` naming the path (with a
-  did-you-mean suggestion when a similar path exists). Expressions that use
-  `default` are never reported as missing.
-- Default rendering of final values: `float` → 1 decimal (`15.2`, 1.x behaviour;
-  the result of `round(n)` keeps `n` decimals); `bool` → `yes`/`no`; `list` →
-  items joined with `, `; `dict` → treated as missing (strict: error
-  "… is a group; use e.g. {path.key}").
-- Whole terminal escape sequences, other control characters (except `\n` and
-  `\t`) and lone surrogates are removed from values. A value containing `\n`
-  continues on a new output line.
+  A `:` inside parentheses or quotes belongs to the filter arguments.
+  Specs are checked at parse time (and limited to widths/precisions ≤ 999).
+  At render time bools and lists are turned into text first and numeric strings are tried as numbers; a spec that doesn't fit the value falls back to the default rendering (strict: `TemplateError`).
+- **Missing values**: a path that does not resolve (endpoint unavailable on this Pi-hole, key absent, value `null`) yields `None`.
+  Filters pass `None` through unchanged, except `default`, `if`, `not` and the comparison filters.
+  A filter that raises yields `None` (strict: `TemplateError`).
+  A `None` that reaches the output renders as `RenderOptions.missing` (default `?`) or, with `RenderOptions.strict`, raises `TemplateError` naming the path (with a did-you-mean suggestion when a similar path exists).
+  Expressions that use `default` are never reported as missing.
+- Default rendering of final values: `float` → 1 decimal (`15.2`, 1.x behaviour; the result of `round(n)` keeps `n` decimals); `bool` → `yes`/`no`; `list` → items joined with `, `; `dict` → treated as missing (strict: error "… is a group; use e.g. {path.key}").
+- Whole terminal escape sequences, other control characters (except `\n` and `\t`) and lone surrogates are removed from values.
+  A value containing `\n` continues on a new output line.
 
-### 3. Escapes and comments
+### Escapes and comments
 
-- `\[`, `\]`, `\{`, `\}`, `\\` produce the literal character. Any other `\x`
-  is kept verbatim (so `C:\path` works). A lone `]` or `}` is literal.
-- Raw CSI/OSC escape sequences in the source are passed through as literal
-  text (stripped for `ColorDepth.NONE`); their `[` never starts a tag.
-- `{# ... #}` is a comment (it may span lines). A line containing only
-  comments/whitespace is removed entirely, including its newline.
-- `\r\n` is normalised to `\n`. Exactly one trailing newline of the source is
-  dropped; `render()` returns text without a trailing newline (the CLI adds one).
+- `\[`, `\]`, `\{`, `\}`, `\\` produce the literal character.
+  Any other `\x` is kept verbatim (so `C:\path` works).
+  A lone `]` or `}` is literal.
+- Raw CSI/OSC escape sequences in the source are passed through as literal text (stripped for `ColorDepth.NONE`); their `[` never starts a tag.
+- `{# ... #}` is a comment (it may span lines).
+  A line containing only comments/whitespace is removed entirely, including its newline.
+- `\r\n` is normalised to `\n`.
+  Exactly one trailing newline of the source is dropped; `render()` returns text without a trailing newline (the CLI adds one).
 
 ### Filters
 
-All filters are pure functions `(value, *args) -> value`, registered with
-`_register(name, func, params, description, category, example)` in
-`filters.py`. `filters.catalog()` returns a `FilterInfo(name, signature,
-description, category, example)` per filter; the documentation is generated
-from it, so keep descriptions and examples accurate. Unknown filter names,
-wrong argument counts or types and failed argument validators (e.g. `bytes`
-units, `bar` chars, `spark` bounds, `datetime` formats) are **parse-time**
-`TemplateError`s. Filters never raise on odd input: non-numeric input to a
-numeric filter yields `None`.
+All filters are pure functions `(value, *args) -> value`, registered with `_register(name, func, params, description, category, example)` in `filters.py`.
+`filters.catalog()` returns a `FilterInfo(name, signature, description, category, example)` per filter; the documentation is generated from it, so keep descriptions and examples accurate.
+Unknown filter names, wrong argument counts or types and failed argument validators (e.g. `bytes` units, `bar` chars, `spark` bounds, `datetime` formats) are **parse-time** `TemplateError`s.
+Filters never raise on odd input: non-numeric input to a numeric filter yields `None`.
 
 | Filter | Description | Example |
 | :-- | :-- | :-- |
@@ -261,18 +238,13 @@ def visible_width(text: str) -> int: ...    # ANSI-aware, East-Asian-wide aware
 TemplateError                               # re-exported from pihello.errors
 ```
 
-Rendering details: style state carries across lines; every output line that
-used styling ends with `ESC[0m` and the next line re-emits the active style, so
-wrapping/clipping never bleeds color. Each style's SGR sequence starts with `0`
-(styles replace each other) and is only emitted before visible text. Colors are
-downgraded to the requested `ColorDepth` (truecolor → nearest xterm-256 entry
-16–255 → nearest of 0–15; palette colors 0–15 always use the classic 30–37/90–97
-codes; underline colors are dropped at 16 colors); `ColorDepth.NONE` emits no
-escape sequences at all. Lines are wrapped (at the last whitespace, else hard)
-or clipped by visible width after tab expansion; wrapped continuations keep
-the style. `height` truncates to that many lines.
+Rendering details: style state carries across lines; every output line that used styling ends with `ESC[0m` and the next line re-emits the active style, so wrapping/clipping never bleeds color.
+Each style's SGR sequence starts with `0` (styles replace each other) and is only emitted before visible text.
+Colors are downgraded to the requested `ColorDepth` (truecolor → nearest xterm-256 entry 16–255 → nearest of 0–15; palette colors 0–15 always use the classic 30–37/90–97 codes; underline colors are dropped at 16 colors); `ColorDepth.NONE` emits no escape sequences at all.
+Lines are wrapped (at the last whitespace, else hard) or clipped by visible width after tab expansion; wrapped continuations keep the style.
+`height` truncates to that many lines.
 
-### `pihello.terminal`
+## Terminal (`pihello.terminal`)
 
 ```python
 COLOR_MODES = ("auto", "always", "never", "16", "256", "truecolor")
@@ -295,8 +267,8 @@ def terminal_size(stream: TextIO | None = None, *,
 
 ## Variables and data sources (`pihello.sources`)
 
-Templates reference **paths**; the first segment is a **namespace**. Only the
-sources needed by the template's namespaces are fetched (in parallel).
+Templates reference **paths**; the first segment is a **namespace**.
+Only the sources needed by the template's namespaces are fetched (in parallel).
 [variables.md](variables.md) documents every path (generated from `catalog()`).
 
 | Namespace(s) | Endpoint | Shape (abridged) |
@@ -321,23 +293,17 @@ sources needed by the template's namespaces are fetched (in parallel).
 Transforms:
 
 - remove the `"took"` field from every payload;
-- coerce values the catalog documents as `float` (or `list[float]`) to `float`
-  (Pi-hole sends `0` for `0.0`);
-- normalise per-version differences so paths are stable across v6.x: FTL v6.0's
-  plain counts in `ftl.database.{domains,regex}.*` become `{"total": n}`;
-  `ftl.uptime` is converted from milliseconds to seconds;
+- coerce values the catalog documents as `float` (or `list[float]`) to `float` (Pi-hole sends `0` for `0.0`);
+- normalise per-version differences so paths are stable across v6.x: FTL v6.0's plain counts in `ftl.database.{domains,regex}.*` become `{"total": n}`; `ftl.uptime` is converted from milliseconds to seconds;
 - map Pi-hole's "unknown" markers in `info/version` (`"null"`, `""`) to `None`.
-  `version.<c>.update` compares versions on `master` and commit hashes on other
-  branches; it is `None` when the remote side is unknown (offline, rate-limited
-  update checker) or doesn't apply (`docker` outside Docker). In Docker only the
-  image counts towards `updates`. `updates.status` is `"unknown"` when no counted
-  component has a known update status (offline, GitHub rate limit, start-up);
+  `version.<c>.update` compares versions on `master` and commit hashes on other branches; it is `None` when the remote side is unknown (offline, rate-limited update checker) or doesn't apply (`docker` outside Docker).
+  In Docker only the image counts towards `updates`.
+  `updates.status` is `"unknown"` when no counted component has a known update status (offline, GitHub rate limit, start-up);
 - drop FTL's pseudo upstreams `blocklist` and `cache` from `upstreams`.
 
-A malformed payload becomes an `APIError`. Endpoints that do not exist (404)
-simply leave their namespaces missing. Every endpoint above exists in every
-tested v6 release; the per-version field differences are recorded in
-[compatibility.md](compatibility.md).
+A malformed payload becomes an `APIError`.
+Endpoints that do not exist (404) simply leave their namespaces missing.
+Every endpoint above exists in every tested v6 release; the per-version field differences are recorded in [compatibility.md](compatibility.md).
 
 ```python
 @dataclass(frozen=True)
@@ -412,63 +378,37 @@ class PiholeClient:
     def probe(self) -> dict[str, Any]            # unauthenticated GET /api/info/login, without "took"
 ```
 
-- Login: `POST /api/auth {"password": …}`. A `200` whose `sid` is `null` means
-  the Pi-hole has no password: proceed unauthenticated (`passwordless`). With no
-  password configured, or a session already open, `login()` does nothing; a later
-  `401` raises `AuthenticationError` with an app-password hint.
+- Login: `POST /api/auth {"password": …}`.
+  A `200` whose `sid` is `null` means the Pi-hole has no password: proceed unauthenticated (`passwordless`).
+  With no password configured, or a session already open, `login()` does nothing; a later `401` raises `AuthenticationError` with an app-password hint.
 - Login failures (see compatibility.md for the observed replies):
-  - 2FA enabled and no code sent → **`400` `bad_request`** "No 2FA token found in
-    JSON payload" → `TwoFactorRequired` (Pi-hole does *not* answer `401` here);
-    a `401` mentioning 2FA ("Invalid 2FA token") or carrying `session.totp == true`
-    (wrong password on a 2FA Pi-hole) → `TwoFactorRequired`; app passwords bypass 2FA.
+  - 2FA enabled and no code sent → **`400` `bad_request`** "No 2FA token found in JSON payload" → `TwoFactorRequired` (Pi-hole does *not* answer `401` here); a `401` mentioning 2FA ("Invalid 2FA token") or carrying `session.totp == true` (wrong password on a 2FA Pi-hole) → `TwoFactorRequired`; app passwords bypass 2FA.
   - other `401` → `AuthenticationError`.
   - `429` `api_seats_exceeded` → `TooManySessions`.
-  - `429` `rate_limiting`: FTL allows only 3 password checks per wall-clock second,
-    server-wide, and rejects even a correct password beyond that (several shells
-    starting at once can trip it). `login()` retries up to
-    `LOGIN_RATE_LIMIT_RETRIES` times after a random 0.35–1.1 s delay, never exceeding
-    `timeout` in total, then raises `AuthenticationError` (hint: enable `cache_ttl`).
+  - `429` `rate_limiting`: FTL allows only 3 password checks per wall-clock second, server-wide, and rejects even a correct password beyond that (several shells starting at once can trip it).
+    `login()` retries up to `LOGIN_RATE_LIMIT_RETRIES` times after a random 0.35–1.1 s delay, never exceeding `timeout` in total, then raises `AuthenticationError` (hint: enable `cache_ttl`).
     The 2FA variant ("Rate-limiting 2FA token requests", FTL ≥ v6.4) is not retried.
-- Authenticated requests send the session id in the `X-FTL-SID` header (never
-  in the URL). On a `401` the client logs in again once and retries (session
-  expired, watch mode); with concurrent requests only one thread renews the session.
-- `logout()` sends `DELETE /api/auth` (timeout ≤ `LOGOUT_TIMEOUT`) so sessions
-  never leak (Pi-hole has a small `webserver.api.max_sessions` limit, default 16).
-- Responses: non-JSON or non-Pi-hole responses → `APIError` (hint: wrong URL or
-  Pi-hole v5); `404` with a Pi-hole error object → `EndpointNotFound` (without one
-  → `APIError`); `502`/`503`/`504` without a Pi-hole error → `ConnectionFailed`
-  (reverse proxy / restart). Bodies are read up to 32 MiB.
-- Redirects are never followed (Pi-hole's own HTTP→HTTPS redirect points at
-  `webserver.domain` without the port, and following could leak credentials). A
-  redirect from `http://` to `https://` raises `ConnectionFailed` suggesting the
-  `https://` URL; other redirects raise `APIError`.
-- `timeout` bounds every socket operation and also the host-name lookup (urllib
-  doesn't; the client resolves names in a helper thread so a dead DNS server
-  can't stall a shell start). Non-ASCII characters in reverse-proxy sub-paths
-  are percent-encoded; `user:pass@` in a URL is never echoed in error messages.
-- Network errors map to `ConnectionFailed` with hints (timeout, DNS, refused,
-  reset — "use https://?"); certificate failures to `TLSError` (hint: `--ca-cert`
-  with `/etc/pihole/tls_ca.crt`, or `--insecure`; a separate hint for hostname
-  mismatches, since Pi-hole's certificate is issued for `webserver.domain`); other
-  TLS handshake failures to `TLSError` ("this port doesn't seem to speak HTTPS").
-- TLS: `verify=True` uses the system CA store, a path a CA file (or a directory
-  of hashed certificates). For every verifying context (system store included, since
-  users may import Pi-hole's CA there) the client clears `ssl.VERIFY_X509_STRICT`
-  (the default since Python 3.13), because the CA that Pi-hole generates lacks the
-  key usage extension; chain and host name checks stay on.
-- Proxies from `http_proxy`/`https_proxy`/`no_proxy` are honoured as by urllib,
-  except that loopback hosts always bypass them.
-- The client is thread-safe (sources are fetched in parallel). `repr()` never
-  includes credentials.
-- Debug logging goes through `logging.getLogger("pihello")` (method, path,
-  status, duration — never the password or sid).
+- Authenticated requests send the session id in the `X-FTL-SID` header (never in the URL).
+  On a `401` the client logs in again once and retries (session expired, watch mode); with concurrent requests only one thread renews the session.
+- `logout()` sends `DELETE /api/auth` (timeout ≤ `LOGOUT_TIMEOUT`) so sessions never leak (Pi-hole has a small `webserver.api.max_sessions` limit, default 16).
+- Responses: non-JSON or non-Pi-hole responses → `APIError` (hint: wrong URL or Pi-hole v5); `404` with a Pi-hole error object → `EndpointNotFound` (without one → `APIError`); `502`/`503`/`504` without a Pi-hole error → `ConnectionFailed` (reverse proxy / restart).
+  Bodies are read up to 32 MiB.
+- Redirects are never followed (Pi-hole's own HTTP→HTTPS redirect points at `webserver.domain` without the port, and following could leak credentials).
+  A redirect from `http://` to `https://` raises `ConnectionFailed` suggesting the `https://` URL; other redirects raise `APIError`.
+- `timeout` bounds every socket operation and also the host-name lookup (urllib doesn't; the client resolves names in a helper thread so a dead DNS server can't stall a shell start).
+  Non-ASCII characters in reverse-proxy sub-paths are percent-encoded; `user:pass@` in a URL is never echoed in error messages.
+- Network errors map to `ConnectionFailed` with hints (timeout, DNS, refused, reset — "use https://?"); certificate failures to `TLSError` (hint: `--ca-cert` with `/etc/pihole/tls_ca.crt`, or `--insecure`; a separate hint for hostname mismatches, since Pi-hole's certificate is issued for `webserver.domain`); other TLS handshake failures to `TLSError` ("this port doesn't seem to speak HTTPS").
+- TLS: `verify=True` uses the system CA store, a path a CA file (or a directory of hashed certificates).
+  For every verifying context (system store included, since users may import Pi-hole's CA there) the client clears `ssl.VERIFY_X509_STRICT` (the default since Python 3.13), because the CA that Pi-hole generates lacks the key usage extension; chain and host name checks stay on.
+- Proxies from `http_proxy`/`https_proxy`/`no_proxy` are honoured as by urllib, except that loopback hosts always bypass them.
+- The client is thread-safe (sources are fetched in parallel).
+  `repr()` never includes credentials.
+- Debug logging goes through `logging.getLogger("pihello")` (method, path, status, duration — never the password or sid).
 
 ## Cache (`pihello.cache`)
 
-Optional (`cache_ttl` seconds, default 0 = off). Stores the collected variables
-(never credentials) as JSON in `$XDG_CACHE_HOME/pihello/` (`~/.cache/pihello/`;
-`%LOCALAPPDATA%\pihello\Cache` on Windows), file mode `0600` (the directory is
-created `0700` if missing; an existing one is used as-is), written atomically.
+Optional (`cache_ttl` seconds, default 0 = off).
+Stores the collected variables (never credentials) as JSON in `$XDG_CACHE_HOME/pihello/` (`~/.cache/pihello/`; `%LOCALAPPDATA%\pihello\Cache` on Windows), file mode `0600` (the directory is created `0700` if missing; an existing one is used as-is), written atomically.
 
 ```python
 FORMAT_VERSION = 1
@@ -481,9 +421,7 @@ def store(key: str, variables: Mapping[str, Any]) -> None   # failures are logge
 def clear() -> int                                          # entries removed
 ```
 
-The CLI (`_Show.variables`) keys entries by URL + the template's namespaces,
-stores only when every problem was an `EndpointNotFound`, refreshes the
-builtins (`now`, `pihole.*`) on a hit and never obtains the password for one.
+The CLI (`_Show.variables`) keys entries by URL + the template's namespaces, stores only when every problem was an `EndpointNotFound`, refreshes the builtins (`now`, `pihole.*`) on a hit and never obtains the password for one.
 `--watch` bypasses the cache.
 
 ## Demo data (`pihello.demo`)
@@ -495,12 +433,9 @@ def api_payloads() -> dict[str, Any]   # raw API JSON keyed by Source.endpoint (
 def variables() -> dict[str, Any]      # sources.from_responses(api_payloads(), url=URL, now=NOW)
 ```
 
-The payloads describe a typical home network (a Raspberry Pi 5, a dozen
-clients) on the latest Pi-hole release and cover **every** namespace in
-`sources.catalog()`. Because they go through the real transforms, the variable
-tree is shaped exactly like `sources.collect()` output (derived values and
-builtins included). Everything is deterministic and relative to `NOW`; render
-with `RenderOptions(now=demo.NOW)` for reproducible screenshots and tests.
+The payloads describe a typical home network (a Raspberry Pi 5, a dozen clients) on the latest Pi-hole release and cover **every** namespace in `sources.catalog()`.
+Because they go through the real transforms, the variable tree is shaped exactly like `sources.collect()` output (derived values and builtins included).
+Everything is deterministic and relative to `NOW`; render with `RenderOptions(now=demo.NOW)` for reproducible screenshots and tests.
 `tests/helpers/fakepihole.py` serves the same payloads as the `"demo"` fixture.
 
 ## Presets and themes
@@ -518,8 +453,7 @@ def available() -> tuple[Preset, ...]   # same order
 def get(name: str) -> Preset            # case-insensitive; ConfigError with did-you-mean
 ```
 
-Preset files are read with plain file reads (not `importlib.resources`, which
-costs milliseconds at every shell start) on first use and cached.
+Preset files are read with plain file reads (not `importlib.resources`, which costs milliseconds at every shell start) on first use and cached.
 
 ```python
 # pihello.themes
@@ -536,30 +470,20 @@ def resolve(name: str, overrides: Mapping[str, str] | None = None) -> dict[str, 
 ```
 
 `resolve()` returns the theme's styles with the `[styles]` overrides applied.
-Override keys must be `STYLE_NAMES`; values are style words without `[ ]`/`{ }`
-and may use `@name` to refer to the **base** theme's style (expanded here, so
-the result only contains concrete words). Values are validated with the
-template's style parser; every problem is a `ConfigError`.
+Override keys must be `STYLE_NAMES`; values are style words without `[ ]`/`{ }` and may use `@name` to refer to the **base** theme's style (expanded here, so the result only contains concrete words).
+Values are validated with the template's style parser; every problem is a `ConfigError`.
 
-Presets use the semantic `@name` styles so every preset works with every theme
-(except `classic`, the exact pihello 1.x look, which uses fixed colors).
+Presets use the semantic `@name` styles so every preset works with every theme (except `classic`, the exact pihello 1.x look, which uses fixed colors).
 
 ## Configuration (`pihello.config`)
 
-Precedence (highest first): CLI flags → environment → selected profile →
-top-level config → defaults. Two groups are resolved **as a unit** (the first
-layer that sets any key of the group wins the whole group): the credential
-(`password` | `password_file` | `password_command`, plus `--password-stdin`)
-and the template (`preset` | `template`, plus `--template-string`). Within one
-layer at most one key of each group may be set. Styles are merged instead:
-`[styles]` < `[profiles.NAME.styles]` < `--style`.
+Precedence (highest first): CLI flags → environment → selected profile → top-level config → defaults.
+Two groups are resolved **as a unit** (the first layer that sets any key of the group wins the whole group): the credential (`password` | `password_file` | `password_command`, plus `--password-stdin`) and the template (`preset` | `template`, plus `--template-string`).
+Within one layer at most one key of each group may be set.
+Styles are merged instead: `[styles]` < `[profiles.NAME.styles]` < `--style`.
 
-Config file: `--config`, else `$PIHELLO_CONFIG` (both must exist), else
-`$XDG_CONFIG_HOME/pihello/config.toml` (`~/.config/pihello/config.toml`;
-`%APPDATA%\pihello\config.toml` on Windows; a missing default file is fine).
-Relative `password_file`, `template` and `verify_tls` paths in the file are
-relative to its directory; on the command line and in the environment they are
-relative to the current directory.
+Config file: `--config`, else `$PIHELLO_CONFIG` (both must exist), else `$XDG_CONFIG_HOME/pihello/config.toml` (`~/.config/pihello/config.toml`; `%APPDATA%\pihello\config.toml` on Windows; a missing default file is fine).
+Relative `password_file`, `template` and `verify_tls` paths in the file are relative to its directory; on the command line and in the environment they are relative to the current directory.
 
 ```toml
 url = "http://pi.hole"
@@ -591,11 +515,8 @@ password_command = "pass show pihole2"
 title = "bold red"
 ```
 
-Environment: `PIHELLO_CONFIG`, `PIHELLO_PROFILE`, `PIHELLO_URL`,
-`PIHELLO_PASSWORD`, `PIHELLO_PASSWORD_FILE`, `PIHELLO_PRESET`, `PIHELLO_THEME`
-(empty values are ignored), plus `NO_COLOR`/`FORCE_COLOR`. A config file that
-contains `password` (top level or a profile) and is readable by group/others
-triggers a warning (POSIX only).
+Environment: `PIHELLO_CONFIG`, `PIHELLO_PROFILE`, `PIHELLO_URL`, `PIHELLO_PASSWORD`, `PIHELLO_PASSWORD_FILE`, `PIHELLO_PRESET`, `PIHELLO_THEME` (empty values are ignored), plus `NO_COLOR`/`FORCE_COLOR`.
+A config file that contains `password` (top level or a profile) and is readable by group/others triggers a warning (POSIX only).
 
 ```python
 KEYS: dict[str, KeySpec]          # every key: validation function + description
@@ -650,55 +571,39 @@ class Settings:
     verify: bool | str            # property: verify_tls with "~" expanded
 ```
 
-`run_password_command`: a list is executed directly; a string is split with
-`shlex` and executed directly unless it contains shell syntax
-(`| & ; < > ( ) $ \` * ? [ ] { } ~ ! #` or a newline), then it runs through
-`/bin/sh -c` (`cmd /c` on Windows). The command inherits stdin (pinentry works),
-stdout/stderr are captured, it is killed after the timeout, and the first line
-of stdout (stripped) is the password; a non-zero exit is a `ConfigError` quoting
-the last stderr line.
+`run_password_command`: a list is executed directly; a string is split with `shlex` and executed directly unless it contains shell syntax (`| & ; < > ( ) $ \` * ?
+[ ] { } ~ ! #` or a newline), then it runs through `/bin/sh -c` (`cmd /c` on Windows). The command inherits stdin (pinentry works), stdout/stderr are captured, it is killed after the timeout, and the first line of stdout (stripped) is the password; a non-zero exit is a `ConfigError` quoting the last stderr line.
 
 ## Command line (`pihello.cli`)
 
-`main(argv: Sequence[str] | None = None) -> int`. When the first argument is
-not a known subcommand, `show` is implied, so `pihello` alone renders the
-greeting from config; options before the command name
-(`pihello --config x doctor`) are re-dispatched to that command.
-`build_parser(command="show")` returns a fresh parser per command;
-`COMMANDS` maps command names to their one-line descriptions (also used by the
-completion scripts).
+`main(argv: Sequence[str] | None = None) -> int`.
+When the first argument is not a known subcommand, `show` is implied, so `pihello` alone renders the greeting from config; options before the command name (`pihello --config x doctor`) are re-dispatched to that command.
+`build_parser(command="show")` returns a fresh parser per command; `COMMANDS` maps command names to their one-line descriptions (also used by the completion scripts).
 
-| Command | Purpose |
+| Command | Description |
 | :-- | :-- |
 | `pihello [show]` | render the greeting (default) |
 | `pihello init` | interactive setup wizard (writes config, tests connection, prints shell snippet) |
-| `pihello presets [NAME]` | list presets / preview them with demo (or `--live`) data; `--source` prints one |
+| `pihello presets [NAME]` | list presets / preview them with demo (or `--live`) data; `--source` prints one, `-o FILE` writes it (UTF-8, creates folders, never overwrites) |
 | `pihello themes [NAME]` | list themes with swatches and previews |
 | `pihello vars [--demo] [--json] [--all] [PATTERN]` | list variables with live (or demo) values |
 | `pihello doctor` | diagnose config, connectivity, TLS, auth, versions, sources, sessions |
 | `pihello colors` | print the named color palette |
 | `pihello completion {bash,zsh,fish}` | print a shell completion script (hidden `--names KIND` lists names for dynamic completion) |
 
-pihello 1.x invocations keep working: `pihello ADDR [PASSWORD] [-f FILE] [-p]
-[-k] [-ts [FMT]] [-W N] [-H N] [-c] [-i N]`. A positional password prints a
-warning (it leaks into shell history and `ps`), suppressed by `-q`. With ADDR
-and no configured template, the `classic` preset (the exact 1.x look) is used.
+pihello 1.x invocations keep working: `pihello ADDR [PASSWORD] [-f FILE] [-p] [-k] [-ts [FMT]] [-W N] [-H N] [-c] [-i N]`.
+A positional password prints a warning (it leaks into shell history and `ps`), suppressed by `-q`.
+With ADDR and no configured template, the `classic` preset (the exact 1.x look) is used.
 `-p` upgrades ADDR, `--url` or the configured URL to `https://`.
 
 Notes:
 
-- Imports are lazy: the show path never imports the wizard, doctor or
-  completion code, and `--demo` never imports the HTTP client. The password is
-  only obtained when a request is about to be made.
-- `UI` writes pihello's own messages to stderr, honours `-q` and `NO_COLOR`,
-  and redacts every registered secret (≥ 4 characters) from messages and
-  `--debug` log lines.
-- A fetch problem leaves its namespaces missing (logged with `--debug`); when
-  *every* planned source failed with something other than `EndpointNotFound`,
-  the first error is raised. With `strict`, any fetch problem is an error.
-- `--watch` uses one client and session, redraws on SIGWINCH, uses the
-  alternate screen on a TTY, keeps the last data on connection errors and
-  stops on `AuthenticationError` (other than `TooManySessions`).
+- Imports are lazy: the show path never imports the wizard, doctor or completion code, and `--demo` never imports the HTTP client.
+  The password is only obtained when a request is about to be made.
+- `UI` writes pihello's own messages to stderr, honours `-q` and `NO_COLOR`, and redacts every registered secret (≥ 4 characters) from messages and `--debug` log lines.
+- A fetch problem leaves its namespaces missing (logged with `--debug`); when *every* planned source failed with something other than `EndpointNotFound`, the first error is raised.
+  With `strict`, any fetch problem is an error.
+- `--watch` uses one client and session, redraws on SIGWINCH, uses the alternate screen on a TTY, keeps the last data on connection errors and stops on `AuthenticationError` (other than `TooManySessions`).
 
 ## Setup wizard (`pihello.wizard`)
 
@@ -716,26 +621,18 @@ class Prompter: ...         # all prompts; injectable streams and getpass
 class SetupCancelled(ConfigError): ...
 ```
 
-Five steps: address (probe, HTTPS offer, certificate handling), password
-(`--store` config | file | command | env | none; up to three attempts), preset,
-theme (both with previews of live or demo data), save. Nothing is written before
-the last step; an existing config needs confirmation (or `--force`) and is kept
-as `config.toml.bak`; files are written with `config.write_private`. `--yes`
-takes every answer from the options. `--color` only affects the wizard's own
-output and is not saved.
+Five steps: address (probe, HTTPS offer, certificate handling), password (`--store` config | file | command | env | none; up to three attempts), preset, theme (both with previews of live or demo data), save.
+Nothing is written before the last step; an existing config needs confirmation (or `--force`) and is kept as `config.toml.bak`; files are written with `config.write_private`.
+`--yes` takes every answer from the options.
+`--color` only affects the wizard's own output and is not saved.
 
 ## Diagnostics (`pihello.doctor`)
 
-`run(args, ui, *, stdout=None, env=None) -> int` runs `Doctor`'s checks in
-order: Python, config file (location, parse, permissions) and the effective
-settings with their origins, URL, DNS (with timeout), TCP, the unauthenticated
-API probe (TLS, HTTPS availability), password and login, versions and updates
-(`SUPPORTED_MAJOR = 6`), every data source, API sessions (lists them, warns
-about other pihello sessions, logs out and logs in again to verify the session
-is gone). Each check prints one line (`✓`, `!`, `✗`, `·`, or ASCII when stdout
-can't encode them) plus a hint. A failure that makes later checks pointless
-stops the run. Exit status: 0 with only warnings, else the exit code of the
-first failure. Output goes through the UI's redaction.
+`run(args, ui, *, stdout=None, env=None) -> int` runs `Doctor`'s checks in order: Python, config file (location, parse, permissions) and the effective settings with their origins, URL, DNS (with timeout), TCP, the unauthenticated API probe (TLS, HTTPS availability), password and login, versions and updates (`SUPPORTED_MAJOR = 6`), every data source, API sessions (lists them, warns about other pihello sessions, logs out and logs in again to verify the session is gone).
+Each check prints one line (`✓`, `!`, `✗`, `·`, or ASCII when stdout can't encode them) plus a hint.
+A failure that makes later checks pointless stops the run.
+Exit status: 0 with only warnings, else the exit code of the first failure.
+Output goes through the UI's redaction.
 
 ## Shell completion (`pihello.completion`)
 
@@ -745,32 +642,16 @@ def script(shell: str) -> str       # generated from the real argparse parsers
 def names(kind: str) -> list[str]   # "commands" | "presets" | "themes" | "profiles"; never raises
 ```
 
-The scripts complete subcommands, options, choices and file paths, and call
-`pihello completion --names KIND` at completion time for preset, theme and
-profile names.
+The scripts complete subcommands, options, choices and file paths, and call `pihello completion --names KIND` at completion time for preset, theme and profile names.
 
 ## Testing
 
-- `tests/test_*.py` — fast unit tests, one or more files per module (default
-  `pytest` run; no network, no containers), including Hypothesis property tests
-  for the template engine (`test_template_properties.py`), fixture sanity checks
-  (`test_fixtures.py`) and packaging checks that build the sdist and wheel
-  (`test_packaging.py`). CI requires 90 % coverage.
-- `tests/conftest.py` — every test runs with an isolated `HOME`/XDG directories
-  and a scrubbed environment (`PIHELLO_*`, color and terminal variables); provides
-  the `home`, `fake_pihole` and `fake_pihole_factory` fixtures.
-- `tests/fixtures/pihole/<docker-tag>/responses.json` — real API responses
-  recorded from every Pi-hole v6 FTL minor release by `scripts/record_fixtures.py`
-  (index: `tests/fixtures/pihole/index.json`).
-- `tests/helpers/fakepihole.py` — a threaded stdlib HTTP(S) server that replays a
-  fixture set (or the `"demo"` payloads) and emulates auth, sessions, TOTP, seat
-  limits and faults: `FakePihole(fixture="latest", *, password="pihello-test",
-  totp=False, max_sessions=16, https=False)`.
-- `tests/helpers/containers.py` — starts real Pi-hole containers (podman or
-  docker); `tests/helpers/dnsgen.py` — a tiny DNS client that generates query
-  traffic. Both are used by the integration tests and the fixture recorder.
-- `tests/integration/` — `pytest -m integration`: starts real Pi-hole containers
-  for each supported version and exercises the CLI end to end.
-- `scripts/render_screenshots.py` (galleries and SVGs) and `scripts/gen_docs.py`
-  (filter and variable reference) regenerate docs; both have a `--check` mode
-  that CI runs.
+- `tests/test_*.py` — fast unit tests, one or more files per module (default `pytest` run; no network, no containers), including Hypothesis property tests for the template engine (`test_template_properties.py`), fixture sanity checks (`test_fixtures.py`) and packaging checks that build the sdist and wheel (`test_packaging.py`).
+  CI requires 90 % coverage.
+- `tests/conftest.py` — every test runs with an isolated `HOME`/XDG directories and a scrubbed environment (`PIHELLO_*`, color and terminal variables); provides the `home`, `fake_pihole` and `fake_pihole_factory` fixtures.
+- `tests/fixtures/pihole/<docker-tag>/responses.json` — real API responses recorded from every Pi-hole v6 FTL minor release by `scripts/record_fixtures.py` (index: `tests/fixtures/pihole/index.json`).
+- `tests/helpers/fakepihole.py` — a threaded stdlib HTTP(S) server that replays a fixture set (or the `"demo"` payloads) and emulates auth, sessions, TOTP, seat limits and faults: `FakePihole(fixture="latest", *, password="pihello-test", totp=False, max_sessions=16, https=False)`.
+- `tests/helpers/containers.py` — starts real Pi-hole containers (podman or docker); `tests/helpers/dnsgen.py` — a tiny DNS client that generates query traffic.
+  Both are used by the integration tests and the fixture recorder.
+- `tests/integration/` — `pytest -m integration`: starts real Pi-hole containers for each supported version and exercises the CLI end to end.
+- `scripts/render_screenshots.py` (galleries and SVGs) and `scripts/gen_docs.py` (filter and variable reference) regenerate docs; both have a `--check` mode that CI runs.

@@ -194,8 +194,27 @@ def _details(source: str) -> str:
     fence = "````" if "```" in source else "```"
     return (
         "<details>\n<summary>Template source</summary>\n\n"
-        f"{fence}text\n{source.rstrip()}\n{fence}\n\n</details>\n"
+        f"{fence}text\n{source.rstrip()}\n{fence}\n\n</details>"
     )
+
+
+def _sentence(text: str) -> str:
+    """``text`` with an upper-case first letter (table cells and captions start with one)."""
+    return text[:1].upper() + text[1:]
+
+
+def _commands(*lines: tuple[str, str]) -> list[str]:
+    """A ``sh`` block of commands with aligned ``#`` comments."""
+    width = max(len(command) for command, _ in lines)
+    return [
+        "```sh",
+        *(f"{command.ljust(width)}   # {comment}" for command, comment in lines),
+        "```",
+    ]
+
+
+#: Where the gallery's copy commands save a preset (``-o`` creates the folder).
+COPY_DIR = "~/.config/pihello"
 
 
 def presets_page() -> str:
@@ -205,95 +224,112 @@ def presets_page() -> str:
         "",
         GENERATED_NOTE,
         "",
-        "A preset is a built-in template. Choose one with `--preset NAME` (or",
-        '`preset = "NAME"` in the config file) and combine it with any',
-        "[theme](themes.md). `pihello presets` previews them all in your terminal",
-        "with demo data (`--live` uses your Pi-hole's data instead).",
+        "A preset is a built-in [template](templates.md).",
+        'Choose one with `--preset NAME` (or `preset = "NAME"` in the config file)',
+        "and combine it with any [theme](themes.md).",
+        "`pihello presets` previews them all in your terminal with demo data;",
+        "`--live` uses your Pi-hole's data instead.",
         "",
-        "To make your own, start from a preset and point the config at the file",
-        "(the template language is described in [templates.md](templates.md)):",
-        "",
-        "```sh",
-        "pihello presets default --source > ~/.config/pihello/greeting.txt",
-        '# config.toml: template = "~/.config/pihello/greeting.txt"',
-        "```",
-        "",
-        "Every preset except `classic` uses the semantic theme styles, so it works",
-        "with every theme. *Min width* is the widest line rendered from demo data;",
-        'narrower terminals wrap (or clip with `overflow = "clip"`).',
+        "Every preset except `classic` uses the theme's [style names](themes.md#style-names),",
+        "so it works with every theme.",
+        "*Min width* is the widest line rendered from demo data;",
+        'narrower terminals wrap the lines (or clip them with `overflow = "clip"`).',
         "",
         "| Preset | Description | Min width |",
         "| :-- | :-- | --: |",
     ]
     out += [
-        f"| [`{p.name}`](#{p.name}) | {p.description} | {p.min_width} |"
+        f"| [`{p.name}`](#{p.name}) | {_sentence(p.description)} | {p.min_width} |"
         for p in presets.available()
+    ]
+    out += [
+        "",
+        "To make your own, save a copy of a preset and edit it;",
+        "[Templates](templates.md) describes the language:",
+        "",
+        "```sh",
+        f"pihello presets default --source -o {COPY_DIR}/greeting.txt",
+        "```",
     ]
     for preset in presets.available():
         out += [
             "",
-            f"## {preset.name}",
+            f"## `{preset.name}`",
             "",
-            f"{preset.description[0].upper()}{preset.description[1:]}.",
+            f"{_sentence(preset.description)}.",
             "",
             f"![{preset.name} preset](assets/presets/{preset.name}.svg)",
             "",
-            "```sh",
-            f"pihello --preset {preset.name}",
-            "```",
+            *_commands(
+                (f"pihello --preset {preset.name}", "use it"),
+                (
+                    f"pihello presets {preset.name} --source -o {COPY_DIR}/{preset.name}.txt",
+                    "copy it to edit",
+                ),
+            ),
             "",
-            f"Minimum width: **{preset.min_width}** columns.",
+            f"**Min width:** {preset.min_width} columns",
             "",
             _details(preset.source),
         ]
     return "\n".join(out).rstrip("\n") + "\n"
 
 
+#: What each semantic style is for, in ``themes.STYLE_NAMES`` order.
+STYLE_DESCRIPTIONS = {
+    "title": 'The main heading ("Pi-hole")',
+    "subtitle": "Secondary headings: section names, the host name",
+    "border": "Rules, box frames and separators",
+    "label": 'Field labels ("Queries", "Gravity")',
+    "value": "Ordinary values",
+    "muted": 'De-emphasised text: units, "ago", hints',
+    "accent": "Key numbers: total queries, active clients",
+    "good": "Healthy state: blocking enabled, up to date",
+    "warn": "Attention: updates available, disable timers",
+    "bad": "Failure: blocking disabled, errors",
+    "info": "Informational numbers: gravity size, upstreams",
+    "highlight": "Blocked things: blocked count, percentage, domains",
+}
+
+
 def themes_page() -> str:
     """The Markdown of ``docs/themes.md``."""
+    missing = [name for name in themes.STYLE_NAMES if name not in STYLE_DESCRIPTIONS]
+    if missing:
+        raise SystemExit(f"render_screenshots.py: describe the styles {missing}")
     out = [
         "# Themes",
         "",
         GENERATED_NOTE,
         "",
-        "A theme maps the semantic style names used by the presets to concrete",
-        'styles. Choose one with `--theme NAME` (or `theme = "NAME"` in the config',
-        "file); `pihello themes` previews them all in your own terminal (try",
-        "`pihello themes nord --preset dashboard`). Colors are",
-        "automatically downgraded to 256 or 16 colors when the terminal needs it.",
+        "A theme gives each [style name](#style-names) that the presets use a concrete style.",
+        'Choose one with `--theme NAME` (or `theme = "NAME"` in the config file).',
+        "`pihello themes` previews them all in your own terminal",
+        "(try `pihello themes nord --preset dashboard`).",
+        "Colors are automatically downgraded to 256 or 16 colors when the terminal needs it.",
         "",
         "| Theme | Description |",
         "| :-- | :-- |",
     ]
-    out += [f"| [`{t.name}`](#{t.name}) | {t.description} |" for t in themes.available()]
+    out += [f"| [`{t.name}`](#{t.name}) | {_sentence(t.description)} |" for t in themes.available()]
     out += [
         "",
         "## Style names",
         "",
-        "| Style | Used for |",
+        "Presets use these twelve styles instead of fixed colors, and so can your own templates:",
+        "`[@label]Queries [@value]{queries.total|number}`.",
+        "",
+        "| Style | Description |",
         "| :-- | :-- |",
-        '| `title` | the main heading ("Pi-hole") |',
-        "| `subtitle` | secondary headings: section names, the host name |",
-        "| `border` | rules, box frames and separators |",
-        '| `label` | field labels ("Queries", "Gravity") |',
-        "| `value` | ordinary values |",
-        '| `muted` | de-emphasised text: units, "ago", hints |',
-        "| `accent` | key numbers: total queries, active clients |",
-        "| `good` | healthy state: blocking enabled, up to date |",
-        "| `warn` | attention: updates available, disable timers |",
-        "| `bad` | failure: blocking disabled, errors |",
-        "| `info` | informational numbers: gravity size, upstreams |",
-        "| `highlight` | blocked things: blocked count, percentage, domains |",
+        *(f"| `{name}` | {STYLE_DESCRIPTIONS[name]} |" for name in themes.STYLE_NAMES),
         "",
-        "Use them in your own templates as `[@label]Queries [@value]{queries.total|number}`.",
-        "",
-        "## Overriding styles",
-        "",
-        "Any style of the selected theme can be replaced in the `[styles]` table of",
-        "the config file. Values are style-tag words (see `pihello colors` for the",
-        "color names) and may refer to the theme's own styles with `@name`:",
+        "To change single styles of a theme,",
+        "use the [`[styles]` table](configuration.md#styles) of the config file.",
+        "Values are style-tag words (`pihello colors` lists the color names),",
+        "and they may refer to the theme's own styles with `@name`:",
         "",
         "```toml",
+        "# ~/.config/pihello/config.toml",
         'theme = "nord"',
         "",
         "[styles]",
@@ -304,9 +340,9 @@ def themes_page() -> str:
     for theme in themes.available():
         out += [
             "",
-            f"## {theme.name}",
+            f"## `{theme.name}`",
             "",
-            f"{theme.description[0].upper()}{theme.description[1:]}.",
+            f"{_sentence(theme.description)}.",
             "",
             f"![{theme.name} theme](assets/themes/{theme.name}.svg)",
             "",
