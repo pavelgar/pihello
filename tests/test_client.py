@@ -1098,6 +1098,60 @@ def test_proxy_env_honoured_for_remote_hosts(monkeypatch: pytest.MonkeyPatch) ->
     assert getattr(proxies[0], "proxies", {}).get("http") == "http://proxy.example:3128"
 
 
+def test_unspecified_addresses_are_skipped(
+    fake_pihole: FakePihole, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A real LAN answered `::` for the Pi-hole's AAAA record; connecting to `::`
+    # reaches this machine, so it must not be tried before the real address.
+    import pihello.client as client_module
+
+    port = int(fake_pihole.url.rsplit(":", 1)[1])
+    real_resolve = client_module._resolve
+
+    def resolve(host: str, port_: int, timeout: float | None) -> list[Any]:
+        if host != "pihole.lan":
+            return real_resolve(host, port_, timeout)
+        return [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::", port_, 0, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("0.0.0.0", port_)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port_)),
+        ]
+
+    tried: list[str] = []
+    real_create = socket.create_connection
+
+    def create_connection(address: tuple[str, int], *args: Any, **kwargs: Any) -> socket.socket:
+        tried.append(address[0])
+        return real_create(address, *args, **kwargs)
+
+    monkeypatch.setattr(client_module, "_resolve", resolve)
+    monkeypatch.setattr(socket, "create_connection", create_connection)
+    assert PiholeClient(f"http://pihole.lan:{port}").probe()["dns"] is True
+    assert tried == ["127.0.0.1"]
+
+
+def test_only_unspecified_addresses_are_still_tried(monkeypatch: pytest.MonkeyPatch) -> None:
+    import pihello.client as client_module
+
+    monkeypatch.setattr(
+        client_module,
+        "_resolve",
+        lambda host, port, timeout: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("0.0.0.0", port))
+        ],
+    )
+    tried: list[str] = []
+
+    def create_connection(address: tuple[str, int], *args: Any, **kwargs: Any) -> socket.socket:
+        tried.append(address[0])
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    monkeypatch.setattr(socket, "create_connection", create_connection)
+    with pytest.raises(ConnectionFailed, match="refused"):
+        PiholeClient("http://pihole.lan:8080").probe()
+    assert tried == ["0.0.0.0"]
+
+
 def test_proxy_resolves_the_pihole_host(
     fake_pihole: FakePihole, monkeypatch: pytest.MonkeyPatch
 ) -> None:

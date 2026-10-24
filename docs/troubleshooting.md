@@ -38,6 +38,29 @@ timeout = 1
 
 When the Pi-hole is online, a [cache](configuration.md#caching) (`cache_ttl = 30`) makes most greetings skip the network entirely.
 
+### Slow greeting behind a reverse proxy
+
+Pi-hole's web server answers about 40 ms late on every reused (keep-alive) connection.
+A reverse proxy that keeps its connections to Pi-hole open, like Caddy does by default, adds that delay to every API request, so a greeting takes two to three times as long.
+It slows down Pi-hole's own web interface too.
+`pihello --debug` shows it: every request takes 40 ms or more, even `info/login`.
+
+In Caddy, turn off keep-alive to Pi-hole:
+
+```caddyfile
+# Caddyfile
+pihole.example.lan {
+	reverse_proxy 127.0.0.1:8080 {
+		transport http {
+			keepalive off
+		}
+	}
+}
+```
+
+With Pi-hole `2026.10.0` behind Caddy 2, one API request took 41 ms with Caddy's default settings and 0.8 ms with `keepalive off`, and a greeting 190 ms instead of 101 ms.
+nginx only reuses upstream connections if its `upstream` block has a `keepalive` directive; without one it isn't affected.
+
 ## Connection
 
 ### `could not resolve host 'pi.hole'`

@@ -59,6 +59,10 @@ _SESSIONS_HINT = (
 )
 
 
+#: DNS answers meaning "nothing here"; connecting to them reaches this machine.
+_UNSPECIFIED = frozenset({"0.0.0.0", "::"})  # noqa: S104 - compared against, never bound
+
+
 class _Stop(Exception):
     """Raised to end the run after a fatal failure."""
 
@@ -365,8 +369,17 @@ class Doctor:
             )
             raise _Stop
         addresses = tuple(dict.fromkeys(str(info[4][0]) for info in result[0]))
-        self.ctx.addresses = addresses
+        real = tuple(addr for addr in addresses if addr not in _UNSPECIFIED)
+        self.ctx.addresses = real or addresses  # like the client: placeholders last resort
         self.report("ok", f"DNS {host} → {', '.join(addresses)}", elapsed=elapsed)
+        placeholders = [addr for addr in addresses if addr in _UNSPECIFIED]
+        if placeholders and real:
+            self.report(
+                "info",
+                f"{' and '.join(placeholders)} is not a real address; pihello skips it",
+                hint=f"it's how DNS (e.g. Pi-hole's blocking) says 'nothing here'; check the "
+                f"DNS records for {host} — other programs may try to connect to this machine",
+            )
 
     def check_tcp(self) -> None:
         """TCP connect to the first reachable address."""

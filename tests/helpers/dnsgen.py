@@ -89,7 +89,7 @@ _TYPE_OPT = 41
 _HEADER = struct.Struct(">HHHHHH")
 _MAX_LABEL = 63
 _MAX_NAME = 253
-_NULL_ANSWERS = frozenset({"0.0.0.0", "::"})  # noqa: S104 - data, not a bind address
+_NULL_ANSWERS = frozenset({"0.0.0.0", "::"})
 
 
 class DnsQueryError(Exception):

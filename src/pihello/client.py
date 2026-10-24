@@ -390,6 +390,9 @@ def _resolve(host: str, port: int, timeout: float | None) -> list[Any]:
     return cast("list[Any]", outcome[0])
 
 
+_UNSPECIFIED = frozenset({"0.0.0.0", "::"})  # noqa: S104 - compared against, never bound
+
+
 def _connect(
     address: tuple[str, int], timeout: Any = None, source_address: Any = None
 ) -> socket.socket:
@@ -399,9 +402,13 @@ def _connect(
     host, port = address
     limit = float(timeout) if isinstance(timeout, (int, float)) else None
     error: OSError | None = None
-    for *_, sockaddr in _resolve(host, port, limit):
+    addresses = [sockaddr[0] for *_, sockaddr in _resolve(host, port, limit)]
+    # `::` and `0.0.0.0` are DNS answers for "nothing here" (Pi-hole itself blocks
+    # that way); connecting to them reaches this machine. Use them only as a last resort.
+    real = [addr for addr in addresses if addr not in _UNSPECIFIED]
+    for addr in real or addresses:
         try:
-            return socket.create_connection((sockaddr[0], port), timeout, source_address)
+            return socket.create_connection((addr, port), timeout, source_address)
         except TimeoutError as exc:
             error = _ConnectTimeout(*exc.args)
         except OSError as exc:

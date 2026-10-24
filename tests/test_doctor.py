@@ -335,6 +335,32 @@ def test_dns_resolves_localhost(
     assert code == 0, out
 
 
+def test_placeholder_dns_answer_is_skipped_and_explained(
+    cfg: Path,
+    fake_pihole: FakePihole,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Seen on a real LAN: the Pi-hole's name had A 192.168.1.2 and AAAA `::`.
+    real_getaddrinfo = socket.getaddrinfo
+
+    def getaddrinfo(host: Any, port: Any, *args: Any, **kwargs: Any) -> Any:
+        if host != "pihole.lan":
+            return real_getaddrinfo(host, port, *args, **kwargs)
+        return [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::", port, 0, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port)),
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    configure(cfg, fake_pihole)
+    code, out, _ = run(["--url", fake_pihole.url.replace("127.0.0.1", "pihole.lan")], capsys)
+    assert "DNS pihole.lan → ::, 127.0.0.1" in out
+    assert ":: is not a real address; pihello skips it" in out
+    assert "TCP connection to 127.0.0.1" in out
+    assert code == 0, out
+
+
 def test_not_a_pihole(
     cfg: Path, fake_pihole: FakePihole, capsys: pytest.CaptureFixture[str]
 ) -> None:
