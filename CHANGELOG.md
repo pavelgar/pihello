@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0rc1] - 2026-10-24
+
+Release candidate for 2.0.0. Install it with `pipx install --pip-args=--pre pihello`, `uv tool install --prerelease=allow pihello` or `pip install --pre pihello`; plain installs still get 1.0.0.
 
 A rewrite.
 pihello 1.x command lines and templates keep working; see [Upgrading from 1.x](docs/upgrading.md).
@@ -196,7 +198,7 @@ Initial prototype
 - .gitignore
 - Proof of concept on how to create this command line utility.
 
-[2.0.0]: https://github.com/pavelgar/pihello/compare/v1.0.0...v2.0.0
+[2.0.0rc1]: https://github.com/pavelgar/pihello/compare/v1.0.0...v2.0.0rc1
 [1.0.0]: https://github.com/pavelgar/pihello/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/pavelgar/pihello/compare/v0.2.7...v0.3.0
 [0.2.7]: https://github.com/pavelgar/pihello/compare/0.2.6...v0.2.7
