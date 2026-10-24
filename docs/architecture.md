@@ -400,6 +400,8 @@ class PiholeClient:
 - Network errors map to `ConnectionFailed` with hints (timeout, DNS, refused, reset — "use https://?"); certificate failures to `TLSError` (hint: `--ca-cert` with `/etc/pihole/tls_ca.crt`, or `--insecure`; a separate hint for hostname mismatches, since Pi-hole's certificate is issued for `webserver.domain`); other TLS handshake failures to `TLSError` ("this port doesn't seem to speak HTTPS").
 - TLS: `verify=True` uses the system CA store, a path a CA file (or a directory of hashed certificates).
   For every verifying context (system store included, since users may import Pi-hole's CA there) the client clears `ssl.VERIFY_X509_STRICT` (the default since Python 3.13), because the CA that Pi-hole generates lacks the key usage extension; chain and host name checks stay on.
+- TLS handshakes take turns (a process-wide lock in the HTTPS connection's `connect()`; TCP connects and requests stay parallel), because Pi-hole FTL v6.5 fails parallel handshakes and can crash on them (see [Pi-hole compatibility](compatibility.md#tls)).
+  A GET whose connection drops before any reply (TLS EOF, reset) is retried once; logins (POST) never are.
 - Proxies from `http_proxy`/`https_proxy`/`no_proxy` are honoured as by urllib, except that loopback hosts always bypass them.
 - The client is thread-safe (sources are fetched in parallel).
   `repr()` never includes credentials.

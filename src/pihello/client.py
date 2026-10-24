@@ -409,8 +409,38 @@ def _connect(
     raise error or OSError(f"no addresses found for {host}")
 
 
+def _dropped_before_reply(exc: BaseException) -> bool:
+    """Whether ``exc`` means the connection closed before any reply (safe to retry a GET).
+
+    Certificate failures, refused connections, timeouts and DNS errors are not:
+    retrying them would only fail again, or wait again.
+    """
+    import ssl  # noqa: PLC0415
+    from http.client import RemoteDisconnected  # noqa: PLC0415
+
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return False
+    if isinstance(
+        exc,
+        (
+            ssl.SSLEOFError,
+            ssl.SSLZeroReturnError,
+            ConnectionResetError,
+            ConnectionAbortedError,
+            BrokenPipeError,
+            RemoteDisconnected,
+        ),
+    ):
+        return True
+    return isinstance(exc, ssl.SSLError) and "eof" in str(exc).lower()
+
+
 class _ConnectTimeout(TimeoutError):
     """The TCP handshake got no answer: the host is unreachable, not slow."""
+
+
+#: Serialises TLS handshakes; see ``_HTTPSConnection.connect`` in :func:`_handler_classes`.
+_TLS_HANDSHAKE_LOCK = threading.Lock()
 
 
 @functools.cache
@@ -428,6 +458,18 @@ def _handler_classes() -> tuple[type[Any], type[Any]]:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
             self._create_connection = _connect
+
+        def connect(self) -> None:
+            # http.client's own connect(), with the TLS handshake taking turns:
+            # Pi-hole FTL up to at least v6.5 fails parallel handshakes and can
+            # crash (segfault) on them. The TCP connect and the requests
+            # themselves still run in parallel.
+            http.client.HTTPConnection.connect(self)
+            # _tunnel_host and _context are set by http.client (3.10-3.14 alike)
+            server_hostname = self._tunnel_host or self.host  # type: ignore[attr-defined]
+            context = self._context  # type: ignore[attr-defined]
+            with _TLS_HANDSHAKE_LOCK:
+                self.sock = context.wrap_socket(self.sock, server_hostname=server_hostname)
 
     class _HTTPHandler(urllib.request.HTTPHandler):
         def do_open(self, http_class: Any, req: Any, **kwargs: Any) -> Any:
@@ -832,37 +874,44 @@ class PiholeClient:
         request = Request(f"{self.api_url}/{path}", data=data, headers=headers, method=method)
         opener = self._get_opener()
         limit = self.timeout if timeout is None else timeout
-        started = time.perf_counter()
-        try:
+        # A GET whose connection dropped before any reply is retried once: Pi-hole's
+        # web server occasionally cuts off one of several parallel TLS handshakes.
+        attempts = 2 if method == "GET" else 1
+        for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            cause: BaseException
             try:
-                response = opener.open(request, timeout=limit)
-            except HTTPError as err:
-                with err:
-                    reply = _make_reply(
-                        err.code, err.reason, err.headers, err.read(_MAX_RESPONSE_BYTES)
-                    )
+                try:
+                    response = opener.open(request, timeout=limit)
+                except HTTPError as err:
+                    with err:
+                        reply = _make_reply(
+                            err.code, err.reason, err.headers, err.read(_MAX_RESPONSE_BYTES)
+                        )
+                else:
+                    with response:
+                        reply = _make_reply(
+                            response.status,
+                            response.reason,
+                            response.headers,
+                            response.read(_MAX_RESPONSE_BYTES),
+                        )
+            except URLError as err:
+                reason = err.reason
+                cause = reason if isinstance(reason, BaseException) else OSError(str(reason))
+            except (OSError, HTTPException) as err:
+                cause = err
             else:
-                with response:
-                    reply = _make_reply(
-                        response.status,
-                        response.reason,
-                        response.headers,
-                        response.read(_MAX_RESPONSE_BYTES),
-                    )
-        except URLError as err:
-            reason = err.reason
-            failure = self._network_error(
-                reason if isinstance(reason, BaseException) else OSError(str(reason)), limit
-            )
-        except (OSError, HTTPException) as err:
-            failure = self._network_error(err, limit)
-        else:
+                elapsed = (time.perf_counter() - started) * 1000
+                _log.debug("%s /api/%s -> %s (%.0f ms)", method, path, reply.status, elapsed)
+                return reply
+            failure = self._network_error(cause, limit)
             elapsed = (time.perf_counter() - started) * 1000
-            _log.debug("%s /api/%s -> %s (%.0f ms)", method, path, reply.status, elapsed)
-            return reply
-        elapsed = (time.perf_counter() - started) * 1000
-        _log.debug("%s /api/%s failed after %.0f ms: %s", method, path, elapsed, failure)
-        raise failure
+            _log.debug("%s /api/%s failed after %.0f ms: %s", method, path, elapsed, failure)
+            if attempt == attempts or not _dropped_before_reply(cause):
+                raise failure
+            _log.debug("%s /api/%s: connection dropped, retrying once", method, path)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     def _network_error(self, exc: BaseException, timeout: float) -> ConnectionFailed:
         """Map a low-level exception to :class:`ConnectionFailed` / :class:`TLSError`."""

@@ -222,6 +222,11 @@ With `ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT` verification against `tls_ca.
 pihello therefore clears `VERIFY_X509_STRICT` for every verifying context — not only for `--ca-cert`, because users also import `tls_ca.crt` into the system trust store — while chain and hostname checks stay on, and it explains hostname mismatches.
 Details per tag: `meta.survey.tls`.
 
+**FTL v6.5 (`2026.02.0`) can't handle parallel TLS handshakes.**
+With 4 to 6 clients connecting over HTTPS at once, 3–40 % of the handshakes failed (`unexpected eof while reading`, `record layer failure`, `digest check failed`, connection resets), and both times we ran 6 at once, FTL crashed with a segmentation fault, taking DNS down with it.
+600 parallel handshakes (100 rounds of 6) passed without a single failure on `2025.02.0`, `2025.11.1` (v6.4.1), `2026.06.0` (v6.6.2), `2026.07.2`, `2026.09.0` and `2026.10.0` (v6.8), so it was a regression in v6.5, fixed in v6.6.
+pihello lets its TLS handshakes take turns on every version (the TCP connects and the requests still run in parallel), and retries a GET once if its connection drops before any reply.
+
 ## Behaviour that matters for test infrastructure
 
 - `FTLCONF_dns_listeningMode=ALL` (upper case accepted everywhere) is needed for queries arriving through a published port.

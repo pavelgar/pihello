@@ -963,6 +963,52 @@ def test_connection_dropped(fake_pihole: FakePihole) -> None:
     assert "https://" in info.value.hint
 
 
+def test_get_retries_once_when_the_connection_drops(fake_pihole: FakePihole) -> None:
+    # Pi-hole's web server occasionally cuts off one of several parallel TLS
+    # handshakes ("unexpected eof while reading"); a single retry recovers.
+    fake_pihole.fail("info/version", drop=True, times=1)
+    with PiholeClient(fake_pihole.url, PASSWORD) as client:
+        data = client.get("info/version")
+    assert "version" in data
+    assert len(fake_pihole.requests_to("info/version")) == 2
+
+
+def test_get_gives_up_after_one_retry(fake_pihole: FakePihole) -> None:
+    fake_pihole.fail("info/version", drop=True)
+    with pytest.raises(ConnectionFailed, match="closed the connection"):
+        PiholeClient(fake_pihole.url).get("info/version")
+    assert len(fake_pihole.requests_to("info/version")) == 2
+
+
+def test_login_is_not_retried_when_the_connection_drops(fake_pihole: FakePihole) -> None:
+    # A dropped login may still have created a session; never send it twice.
+    fake_pihole.fail("POST auth", drop=True, times=1)
+    with pytest.raises(ConnectionFailed):
+        PiholeClient(fake_pihole.url, PASSWORD).login()
+    assert len(fake_pihole.requests_to("auth", "POST")) == 1
+
+
+@pytest.mark.parametrize(
+    ("exc", "retry"),
+    [
+        (ssl.SSLEOFError(8, "EOF occurred in violation of protocol"), True),
+        (ssl.SSLError(1, "[SSL: UNEXPECTED_EOF_WHILE_READING] unexpected eof while reading"), True),
+        (ConnectionResetError(104, "Connection reset by peer"), True),
+        (RemoteDisconnected("Remote end closed connection without response"), True),
+        (BrokenPipeError(32, "Broken pipe"), True),
+        (ssl.SSLCertVerificationError(1, "certificate verify failed"), False),
+        (ssl.SSLError(1, "[SSL: WRONG_VERSION_NUMBER] wrong version number"), False),
+        (ConnectionRefusedError(111, "Connection refused"), False),
+        (TimeoutError("timed out"), False),
+        (socket.gaierror(-2, "Name or service not known"), False),
+    ],
+)
+def test_which_failures_are_retried(exc: BaseException, retry: bool) -> None:
+    from pihello.client import _dropped_before_reply
+
+    assert _dropped_before_reply(exc) is retry
+
+
 def test_connection_refused() -> None:
     port = free_port()
     with pytest.raises(ConnectionFailed, match="refused") as info:
@@ -1163,6 +1209,45 @@ def test_read_timeout_during_body(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def https_pihole(fake_pihole_factory: Callable[..., FakePihole]) -> FakePihole:
     return fake_pihole_factory(https=True)
+
+
+def test_tls_handshakes_take_turns(
+    https_pihole: FakePihole, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Pi-hole FTL up to at least v6.5 fails, and can segfault, on parallel TLS
+    # handshakes; every HTTPS connection must hand-shake under the shared lock
+    # while the requests themselves still run in parallel.
+    import time
+
+    import pihello.client as client_module
+    from pihello import sources
+
+    real = threading.Lock()
+    guard = threading.Lock()
+    state = {"inside": 0, "most": 0, "entries": 0}
+
+    class Tracking:
+        def __enter__(self) -> None:
+            real.acquire()
+            with guard:
+                state["inside"] += 1
+                state["entries"] += 1
+                state["most"] = max(state["most"], state["inside"])
+            time.sleep(0.005)  # widen the window in which an overlap would show
+
+        def __exit__(self, *exc: object) -> None:
+            with guard:
+                state["inside"] -= 1
+            real.release()
+
+    monkeypatch.setattr(client_module, "_TLS_HANDSHAKE_LOCK", Tracking())
+    assert https_pihole.ca_cert_path is not None
+    with PiholeClient(https_pihole.url, PASSWORD, verify=str(https_pihole.ca_cert_path)) as c:
+        _, problems = sources.collect(c, None)
+    assert not problems
+    planned = len(sources.plan_all())
+    assert state["entries"] >= planned + 1  # the login and every fetch hand-shook under the lock
+    assert state["most"] == 1
 
 
 def test_https_with_ca_bundle(https_pihole: FakePihole) -> None:
