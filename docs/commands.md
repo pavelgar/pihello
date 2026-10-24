@@ -24,7 +24,7 @@ Here it is with demo data:
 
 ```console
 $ pihello --demo
-Pi-hole on pi.hole · ● enabled  ↑ update available
+Pi-hole on pi.hole · ● enabled  ↑ updates
 ────────────────────────────────────────────────────────────
 Versions   Core v6.5 · Web v6.6.1 · FTL v6.7↑
 Queries    48,220 today · 7,099 blocked

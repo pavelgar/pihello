@@ -1,7 +1,7 @@
 {# full: everything useful on one screen (72 columns): versions and updates, #}
 {# blocking, queries, clients, gravity, top lists, upstream, system health #}
 {# and FTL. Optional data degrades to "n/a".                              #}
-[@title]Pi-hole[@muted] on [@subtitle]{pihole.host}[@muted]{host.model|default("")|truncate(32)|prefix(" (")|suffix(")")} · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
+[@title]Pi-hole[@muted] on [@subtitle]{pihole.host|truncate(16)}[@muted]{host.model|default("")|truncate(32)|prefix(" (")|suffix(")")} · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
 [@border]{"─"|repeat(72)}
 [@label]Versions    [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}[@muted]{version.docker.local|prefix(" · Docker ")|default("")}
 [@label]Updates     [{updates.status|default("unknown")|map(available=@warn, current=@good, _=@muted)}]{updates.components|join(", ")|prefix("available for ")|default("")}{updates.status|default("unknown")|map(available="", current="up to date", _="unknown")}

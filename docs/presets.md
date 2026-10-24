@@ -18,10 +18,10 @@ narrower terminals wrap the lines (or clip them with `overflow = "clip"`).
 | :-- | :-- | --: |
 | [`default`](#default) | The flagship greeting: status, versions, queries, clients, gravity | 62 |
 | [`box`](#box) | Framed MOTD-style greeting with rounded borders | 56 |
-| [`classic`](#classic) | The exact pihello 1.x look, fixed colors | 54 |
+| [`classic`](#classic) | The exact pihello 1.x look, fixed colors | 56 |
 | [`compact`](#compact) | Three short lines: status, queries, gravity | 60 |
 | [`dashboard`](#dashboard) | PADD-inspired sectioned dashboard with bars and 24h sparklines | 66 |
-| [`emoji`](#emoji) | Playful, emoji-decorated summary | 50 |
+| [`emoji`](#emoji) | Playful, emoji-decorated summary | 52 |
 | [`fetch`](#fetch) | Neofetch-style: Pi-hole logo on the left, key: value info on the right | 66 |
 | [`full`](#full) | Everything useful: versions, queries, system, top lists, upstream | 75 |
 | [`history`](#history) | 24 hour sparklines of total, blocked and cached queries with min/max/avg | 57 |
@@ -60,7 +60,7 @@ pihello presets default --source -o ~/.config/pihello/default.txt   # copy it to
 {# Status (with disable timer and update hint), versions with ↑ markers,  #}
 {# today's queries with a blocked-percentage bar, clients, gravity and    #}
 {# the most recently blocked domain. Works with every theme.              #}
-[@title]Pi-hole[@muted] on [@subtitle]{pihole.host}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if("  ")}[@warn]{updates.available|if("↑ update available")}
+[@title]Pi-hole[@muted] on [@subtitle]{pihole.host|truncate(16)}[@muted] · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if("  ")}[@warn]{updates.available|if("↑ updates")}
 [@border]{"─"|repeat(60)}
 [@label]Versions   [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}
 [@label]Queries    [@accent]{queries.total|number}[@muted] today · [@highlight]{queries.blocked|number}[@muted] blocked
@@ -118,7 +118,7 @@ pihello --preset classic                                            # use it
 pihello presets classic --source -o ~/.config/pihello/classic.txt   # copy it to edit
 ```
 
-**Min width:** 54 columns
+**Min width:** 56 columns
 
 <details>
 <summary>Template source</summary>
@@ -217,7 +217,7 @@ pihello --preset emoji                                          # use it
 pihello presets emoji --source -o ~/.config/pihello/emoji.txt   # copy it to edit
 ```
 
-**Min width:** 50 columns
+**Min width:** 52 columns
 
 <details>
 <summary>Template source</summary>
@@ -225,7 +225,7 @@ pihello presets emoji --source -o ~/.config/pihello/emoji.txt   # copy it to edi
 ```text
 {# emoji: a playful greeting. Only uses emoji that terminals always draw two #}
 {# cells wide (no variation selectors), so the layout stays aligned.        #}
-[@title]👋 Hello from Pi-hole [@value]{version.core.local.version}[@muted] on [@subtitle]{pihole.host}
+[@title]👋 Hello from Pi-hole [@value]{version.core.local.version}[@muted] on [@subtitle]{pihole.host|truncate(16)}
 []{blocking|map(enabled="🟢", disabled="🔴", _="🟡")} [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]blocking {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
 []📊 [@accent]{queries.total|number}[@muted] queries today
 []🛑 [@highlight]{queries.blocked|number}[@muted] blocked, that's [@highlight]{queries.percent_blocked|percent}
@@ -301,7 +301,7 @@ pihello presets full --source -o ~/.config/pihello/full.txt   # copy it to edit
 {# full: everything useful on one screen (72 columns): versions and updates, #}
 {# blocking, queries, clients, gravity, top lists, upstream, system health #}
 {# and FTL. Optional data degrades to "n/a".                              #}
-[@title]Pi-hole[@muted] on [@subtitle]{pihole.host}[@muted]{host.model|default("")|truncate(32)|prefix(" (")|suffix(")")} · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
+[@title]Pi-hole[@muted] on [@subtitle]{pihole.host|truncate(16)}[@muted]{host.model|default("")|truncate(32)|prefix(" (")|suffix(")")} · [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]● {blocking}[@warn]{timer|duration|prefix(" for ")|default("")}
 [@border]{"─"|repeat(72)}
 [@label]Versions    [@value]Core {version.core.local.version}[@warn]{version.core.update|if("↑")}[@muted] · [@value]Web {version.web.local.version}[@warn]{version.web.update|if("↑")}[@muted] · [@value]FTL {version.ftl.local.version}[@warn]{version.ftl.update|if("↑")}[@muted]{version.docker.local|prefix(" · Docker ")|default("")}
 [@label]Updates     [{updates.status|default("unknown")|map(available=@warn, current=@good, _=@muted)}]{updates.components|join(", ")|prefix("available for ")|default("")}{updates.status|default("unknown")|map(available="", current="up to date", _="unknown")}
@@ -399,7 +399,7 @@ pihello presets plain --source -o ~/.config/pihello/plain.txt   # copy it to edi
 ```text
 {# plain: ASCII only (no box drawing, block elements or emoji), so it works #}
 {# on any terminal, over serial consoles and in log files.                  #}
-[@title]Pi-hole[@muted] @ [@subtitle]{pihole.host}[@muted] - [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]{blocking|upper}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if(" - ")}[@warn]{updates.available|if("update available")}
+[@title]Pi-hole[@muted] @ [@subtitle]{pihole.host|truncate(16, end="...")}[@muted] - [{blocking|map(enabled=@good, disabled=@bad, _=@warn)}]{blocking|upper}[@warn]{timer|duration|prefix(" for ")|default("")}[@muted]{updates.available|if(" - ")}[@warn]{updates.available|if("updates")}
 [@border]{"-"|repeat(60)}
 [@label]Versions : [@value]core {version.core.local.version}[@muted], [@value]web {version.web.local.version}[@muted], [@value]ftl {version.ftl.local.version}
 [@label]Queries  : [@accent]{queries.total|number}[@muted] today, [@highlight]{queries.blocked|number}[@muted] blocked ([@highlight]{queries.percent_blocked|percent}[@muted])

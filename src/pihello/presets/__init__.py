@@ -38,10 +38,10 @@ class Preset:
 _REGISTRY: dict[str, tuple[str, int]] = {
     "default": ("the flagship greeting: status, versions, queries, clients, gravity", 62),
     "box": ("framed MOTD-style greeting with rounded borders", 56),
-    "classic": ("the exact pihello 1.x look, fixed colors", 54),
+    "classic": ("the exact pihello 1.x look, fixed colors", 56),
     "compact": ("three short lines: status, queries, gravity", 60),
     "dashboard": ("PADD-inspired sectioned dashboard with bars and 24h sparklines", 66),
-    "emoji": ("playful, emoji-decorated summary", 50),
+    "emoji": ("playful, emoji-decorated summary", 52),
     "fetch": ("neofetch-style: Pi-hole logo on the left, key: value info on the right", 66),
     "full": ("everything useful: versions, queries, system, top lists, upstream", 75),
     "history": ("24 hour sparklines of total, blocked and cached queries with min/max/avg", 57),
