@@ -402,6 +402,10 @@ class PiholeClient:
   For every verifying context (system store included, since users may import Pi-hole's CA there) the client clears `ssl.VERIFY_X509_STRICT` (the default since Python 3.13), because the CA that Pi-hole generates lacks the key usage extension; chain and host name checks stay on.
 - TLS handshakes take turns (a process-wide lock in the HTTPS connection's `connect()`; TCP connects and requests stay parallel), because Pi-hole FTL v6.5 fails parallel handshakes and can crash on them (see [Pi-hole compatibility](compatibility.md#tls)).
   A GET whose connection drops before any reply (TLS EOF, reset) is retried once; logins (POST) never are.
+- No connection pooling or keep-alive, on purpose: every request uses a new connection, and the fetches run in parallel.
+  Pi-hole's web server supports keep-alive, but delays every reused request by about 40 ms on its side (curl shows it too, and `TCP_NODELAY` on the client doesn't help).
+  Measured against `2026.10.0`: 6 requests took 2 ms over new HTTP connections and 205 ms over one reused connection; over HTTPS, 283 ms and 253 ms.
+  TLS session resumption could make HTTPS handshakes cheaper without keep-alive, but it's unmeasured on a real Raspberry Pi and not implemented.
 - Proxies from `http_proxy`/`https_proxy`/`no_proxy` are honoured as by urllib, except that loopback hosts always bypass them.
 - The client is thread-safe (sources are fetched in parallel).
   `repr()` never includes credentials.
